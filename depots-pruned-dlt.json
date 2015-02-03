@@ -1,0 +1,200 @@
+[
+    {
+        "accessPoint": "ibp://depot1.loc1.utk.reddnet.org:6714", 
+        "location": {
+            "latitude": 35.951700000000002, 
+            "longitude": -83.929456000000002
+        }, 
+        "name": "IBP", 
+        "serviceType": "ibp_server", 
+        "status": "ON", 
+        "ttl": 63072000
+    }, 
+    {
+        "accessPoint": "ibp://depot2.loc1.utk.reddnet.org:6714", 
+        "location": {
+            "latitude": 35.951700000000002, 
+            "longitude": -83.929456000000002
+        }, 
+        "name": "IBP", 
+        "serviceType": "ibp_server", 
+        "status": "ON", 
+        "ttl": 63072000
+    }, 
+    {
+        "accessPoint": "ibp://depot3.loc1.utk.reddnet.org:6714", 
+        "location": {
+            "latitude": 35.951700000000002, 
+            "longitude": -83.929456000000002
+        }, 
+        "name": "IBP", 
+        "serviceType": "ibp_server", 
+        "status": "ON", 
+        "ttl": 63072000
+    }, 
+    {
+        "accessPoint": "ibp://depot4.loc1.utk.reddnet.org:6714", 
+        "location": {
+            "latitude": 35.951700000000002, 
+            "longitude": -83.929456000000002
+        }, 
+        "name": "IBP", 
+        "serviceType": "ibp_server", 
+        "status": "ON", 
+        "ttl": 63072000
+    }, 
+    {
+        "accessPoint": "ibp://depot5.loc1.utk.reddnet.org:6714", 
+        "location": {
+            "latitude": 35.951700000000002, 
+            "longitude": -83.929456000000002
+        }, 
+        "name": "IBP", 
+        "serviceType": "ibp_server", 
+        "status": "ON", 
+        "ttl": 63072000
+    }, 
+    {
+        "accessPoint": "ibp://depot6.loc1.utk.reddnet.org:6714", 
+        "location": {
+            "latitude": 35.951700000000002, 
+            "longitude": -83.929456000000002
+        }, 
+        "name": "IBP", 
+        "serviceType": "ibp_server", 
+        "status": "ON", 
+        "ttl": 63072000
+    }, 
+    {
+        "accessPoint": "ibp://depot7.loc1.utk.reddnet.org:6714", 
+        "location": {
+            "latitude": 35.951700000000002, 
+            "longitude": -83.929456000000002
+        }, 
+        "name": "IBP", 
+        "serviceType": "ibp_server", 
+        "status": "ON", 
+        "ttl": 63072000
+    }, 
+    {
+        "accessPoint": "ibp://depot8.loc1.utk.reddnet.org:6714", 
+        "location": {
+            "latitude": 35.951700000000002, 
+            "longitude": -83.929456000000002
+        }, 
+        "name": "IBP", 
+        "serviceType": "ibp_server", 
+        "status": "ON", 
+        "ttl": 63072000
+    }, 
+    {
+        "accessPoint": "ibp://depot9.loc1.utk.reddnet.org:6714", 
+        "location": {
+            "latitude": 35.951700000000002, 
+            "longitude": -83.929456000000002
+        }, 
+        "name": "IBP", 
+        "serviceType": "ibp_server", 
+        "status": "ON", 
+        "ttl": 63072000
+    }, 
+    {
+        "accessPoint": "ibp://depot10.loc1.utk.reddnet.org:6714", 
+        "location": {
+            "latitude": 35.951700000000002, 
+            "longitude": -83.929456000000002
+        }, 
+        "name": "IBP", 
+        "serviceType": "ibp_server", 
+        "status": "ON", 
+        "ttl": 63072000
+    }, 
+    {
+        "accessPoint": "ibp://depot1.loc1.ufl.reddnet.org:6714", 
+        "location": {
+            "latitude": 29.643632, 
+            "longitude": -82.354929999999996
+        }, 
+        "name": "IBP", 
+        "serviceType": "ibp_server", 
+        "status": "ON", 
+        "ttl": 63072000
+    }, 
+    {
+        "accessPoint": "ibp://depot2.loc1.ufl.reddnet.org:6714", 
+        "location": {
+            "latitude": 29.643632, 
+            "longitude": -82.354929999999996
+        }, 
+        "name": "IBP", 
+        "serviceType": "ibp_server", 
+        "status": "ON", 
+        "ttl": 63072000
+    }, 
+    {
+        "accessPoint": "ibp://depot3.loc1.ufl.reddnet.org:6714", 
+        "location": {
+            "latitude": 29.643632, 
+            "longitude": -82.354929999999996
+        }, 
+        "name": "IBP", 
+        "serviceType": "ibp_server", 
+        "status": "ON", 
+        "ttl": 63072000
+    }, 
+    {
+        "accessPoint": "ibp://depot4.loc1.ufl.reddnet.org:6714", 
+        "location": {
+            "latitude": 29.643632, 
+            "longitude": -82.354929999999996
+        }, 
+        "name": "IBP", 
+        "serviceType": "ibp_server", 
+        "status": "ON", 
+        "ttl": 63072000
+    }, 
+    {
+        "accessPoint": "ibp://depot5.loc1.ufl.reddnet.org:6714", 
+        "location": {
+            "latitude": 29.643632, 
+            "longitude": -82.354929999999996
+        }, 
+        "name": "IBP", 
+        "serviceType": "ibp_server", 
+        "status": "ON", 
+        "ttl": 63072000
+    }, 
+    {
+        "accessPoint": "ibp://depot6.loc1.ufl.reddnet.org:6714", 
+        "location": {
+            "latitude": 29.643632, 
+            "longitude": -82.354929999999996
+        }, 
+        "name": "IBP", 
+        "serviceType": "ibp_server", 
+        "status": "ON", 
+        "ttl": 63072000
+    }, 
+    {
+        "accessPoint": "ibp://depot7.loc1.ufl.reddnet.org:6714", 
+        "location": {
+            "latitude": 29.643632, 
+            "longitude": -82.354929999999996
+        }, 
+        "name": "IBP", 
+        "serviceType": "ibp_server", 
+        "status": "ON", 
+        "ttl": 63072000
+    }, 
+    {
+        "accessPoint": "ibp://depot8.loc1.ufl.reddnet.org:6714", 
+        "location": {
+            "latitude": 29.643632, 
+            "longitude": -82.354929999999996
+        }, 
+        "name": "IBP", 
+        "serviceType": "ibp_server", 
+        "status": "ON", 
+        "ttl": 63072000
+    }
+]
