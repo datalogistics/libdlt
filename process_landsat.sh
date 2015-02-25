@@ -1,7 +1,15 @@
 #!/bin/bash
 
-FILE=$1
-SCENE=`echo $FILE | awk -F. '{print $1}'`
+SCENE=$1
+URL=$2
+FILE="scene.tar.gz"
+
+time lors_download -t 10 -b 10m $URL -o $FILE
+
+if [ ! -f $FILE ]; then
+    echo "Could not download file!"
+    exit
+fi
 
 mkdir -p temp
 
