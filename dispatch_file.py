@@ -1,18 +1,23 @@
 #!/usr/bin/python
 
 import sys
-import os.path
+import os
 import argparse
+import requests
+import json
+from lxml import etree
 from subprocess import call
-import unisencoder.dispatcher as unisDispatch
+from unisencoder.decoder import ExnodeDecoder
+
+EXNODE_URL="http://dev.incntre.iu.edu:8888/exnodes"
 
 def upload_to_eodn(xnd_file, file):
     results = '0'
     retry = 1
     for i in range(retry):
         try:
-            results = call(['lors_upload', '--duration=1h', '--none', '-c', '1', '-H',
-                            'dlt.incntre.iu.edu', '-n', '-t', '10', '-b', '10m','-V', '1', '-o',
+            results = call(['lors_upload', '--duration=1h', '--none', '-c', '1', '--depot-list',
+                            '-t', '10', '-b', '10m','-V', '1', '-o',
                             xnd_file, file])
             if results == 0:
                 break
@@ -21,15 +26,27 @@ def upload_to_eodn(xnd_file, file):
             
     return results
 
-def unis_import(xnd_filename, xnd_path, scene_id):
+def unis_import(xndfile, scene_id):
     print 'Importing exnode to UNIS'
-    dispatch = unisDispatch.Dispatcher()
-    unis_root = unisDispatch.create_remote_directory("root", None)
-    extended_dir = unisDispatch.parse_filename(xnd_filename)
-    
-    parent = unisDispatch.create_directories(extended_dir, unis_root)
-    dispatch.DispatchFile(xnd_path, parent, metadata = { "scene_id": scene_id })
 
+    info = os.stat(xndfile)
+    creation_time = int(info.st_ctime)
+    modified_time = int(info.st_mtime)
+    
+    kwargs = dict(creation_time = creation_time,
+                  modified_time = modified_time)
+    
+    encoder = ExnodeDecoder()
+    xnd = etree.parse(xndfile)
+    uef = encoder.encode(xnd, **kwargs)
+    
+    scene_meta = {'properties':
+                      {'metadata':
+                           {'scene_id': scene_id}}}
+    uef.update(scene_meta)
+
+    header = {'content-type': 'application/perfsonar+json'}
+    ret = requests.post(EXNODE_URL, data=json.dumps(uef), headers=header)
 
 def main():
     parser = argparse.ArgumentParser(
@@ -42,7 +59,11 @@ def main():
     xndfile = args.file+".xnd"
 
     ret = upload_to_eodn(xndfile, args.file)
-    unis_import(xndfile, xndfile, args.scene)
+    if ret:
+        exit(1)
+    unis_import(xndfile, args.scene)
+
+    print "Done!"
 
 if __name__ == '__main__':
     main()
