@@ -7,7 +7,7 @@ import json
 import argparse
 from subprocess import call
 
-VIZ_HREF = "http://192.168.1.30:42424"
+VIZ_HREF = "http://dlt.incntre.iu.edu:42424"
 EXTS     = ["gz", "bz", "zip", "jpg", "png"]
 
 def on_message(ws, message):
@@ -32,7 +32,7 @@ def on_message(ws, message):
     if (curr in SCENES and ext in EXTS):
         print "\n### Matching SCENE and Filename found, processing...."
         try:
-            results = call(['lors_download', '-t', '10', '-b', '10m', '-V', '1', '-X', VIZ_HREF, '-f', href])
+            results = call(['lors_download', '-t', '10', '-b', '1m', '-V', '1', '-X', VIZ_HREF, '-f', href])
         except Exception as e:
             print "ERROR calling lors_download %s" % e
 
