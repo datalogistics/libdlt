@@ -18,8 +18,8 @@ def upload_to_eodn(xnd_file, file):
     retry = 1
     for i in range(retry):
         try:
-            results = call(['lors_upload', '--duration=1h', '-n', '-c', '1', '--depot-list',
-                            '-t', '10', '-b', '5m','-V', '1', '-o',
+            results = call(['lors_upload', '--duration=1h', '--none', '-c', '1', '--depot-list',
+                            '-t', '10', '-b', '10m', '-V', '1', '-o',
                             xnd_file, file])
             if results == 0:
                 break
@@ -30,8 +30,8 @@ def upload_to_eodn(xnd_file, file):
 
 def unis_import(xndfile, scene_id, exdir):
     print 'Importing exnode to UNIS'
-    dispatch = UnisDispatch.Dispatcher()
-    root = UnisDispatch.create_remote_directory(exdir, None)
+    dispatch = UnisDispatch.Dispatcher(duration=1)
+    root = dispatch.CreateRemoteDirectory(exdir, None)
     #extended_dir = UnisDispatch.parse_filename(xndfile.split('/')[-1])
     #parent = UnisDispatch.create_directories(extended_dir, root)
     dispatch.DispatchFile(xndfile, root, metadata = { "scene_id": scene_id })

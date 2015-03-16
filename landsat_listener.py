@@ -32,7 +32,7 @@ def on_message(ws, message):
     if (curr in SCENES and ext in EXTS):
         print "\n### Matching SCENE and Filename found, processing...."
         try:
-            results = call(['lors_download', '-t', '10', '-b', '1m', '-V', '1', '-X', VIZ_HREF, '-f', href])
+            results = call(['lors_download', '-t', '10', '-b', '5m', '-V', '1', '-X', VIZ_HREF, '-f', href])
         except Exception as e:
             print "ERROR calling lors_download %s" % e
 
