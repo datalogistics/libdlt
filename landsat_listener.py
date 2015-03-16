@@ -7,22 +7,34 @@ import json
 import argparse
 from subprocess import call
 
+VIZ_HREF = "http://192.168.1.30:42424"
+EXTS     = ["gz", "bz", "zip", "jpg", "png"]
+
 def on_message(ws, message):
-    global SCENE
-    FILES = [SCENE+".tar.gz", SCENE+".tar.bz"]
+    global SCENES
 
-    js = json.loads(message)    
-    print "SCENE   : %s" % js['properties']['metadata']['scene_id']
-    print "Filename: %s" % js['name']
-    print "Size    : %s" % js['size']
-    print "URL     : %s" % js['selfRef']
+    js = json.loads(message)
+    try:
+        href  = js['selfRef']
+        curr  = js['properties']['metadata']['scene_id']
+        fname = js['name']
+        size  = js['size']
+        ext   = fname.split('.')[-1]
+    except:
+        #print "Not a valid exnode for download, skipping: %s" % js
+        return
 
-    if (SCENE == js['properties']['metadata']['scene_id'] and js['name'] in FILES):
+    print "SCENE   : %s" % curr
+    print "Filename: %s" % fname
+    print "Size    : %s" % size
+    print "URL     : %s" % href
+
+    if (curr in SCENES and ext in EXTS):
         print "\n### Matching SCENE and Filename found, processing...."
         try:
-            results = call(['/home/kissel/repos/bddlt/misc/process_landsat.sh', SCENE, js['selfRef']])
+            results = call(['lors_download', '-t', '10', '-b', '10m', '-V', '1', '-X', VIZ_HREF, '-f', href])
         except Exception as e:
-            print "ERROR calling process_landsat.sh %s" % e
+            print "ERROR calling lors_download %s" % e
 
 def on_error(ws, error):
     print(error)
@@ -37,16 +49,18 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(
         description="Listen for and then process a particular LANDSAT scene")
-    parser.add_argument('-s', '--scene', type=str, help='The SCENE to look for', required=True)
+    parser.add_argument('-s', '--scenes', type=str, help='Comma-separated list of scenes to look for', required=True)
     parser.add_argument('-H', '--host', type=str, help='The Exnode service',
                         default="ws://dev.incntre.iu.edu:8888/subscribe/exnode")
 
     args = parser.parse_args()
 
-    global SCENE
+    global SCENES
     #websocket.enableTrace(True)
     host = args.host
-    SCENE = args.scene
+    SCENES = args.scenes.split(',')
+
+    print "Listening for SCENES: %s" % SCENES
 
     ws = websocket.WebSocketApp(host,
                                 on_message = on_message,
