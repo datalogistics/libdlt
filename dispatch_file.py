@@ -8,6 +8,8 @@ import json
 from lxml import etree
 from subprocess import call
 from unisencoder.decoder import ExnodeDecoder
+import unisencoder.dispatcher as UnisDispatch
+
 
 EXNODE_URL="http://dev.incntre.iu.edu:8888/exnodes"
 
@@ -26,33 +28,20 @@ def upload_to_eodn(xnd_file, file):
             
     return results
 
-def unis_import(xndfile, scene_id):
+def unis_import(xndfile, scene_id, exdir):
     print 'Importing exnode to UNIS'
-
-    info = os.stat(xndfile)
-    creation_time = int(info.st_ctime)
-    modified_time = int(info.st_mtime)
-    
-    kwargs = dict(creation_time = creation_time,
-                  modified_time = modified_time)
-    
-    encoder = ExnodeDecoder()
-    xnd = etree.parse(xndfile)
-    uef = encoder.encode(xnd, **kwargs)
-    
-    scene_meta = {'properties':
-                      {'metadata':
-                           {'scene_id': scene_id}}}
-    uef.update(scene_meta)
-
-    header = {'content-type': 'application/perfsonar+json'}
-    ret = requests.post(EXNODE_URL, data=json.dumps(uef), headers=header)
+    dispatch = UnisDispatch.Dispatcher()
+    root = UnisDispatch.create_remote_directory(exdir, None)
+    extended_dir = UnisDispatch.parse_filename(xndfile.split('/')[-1])
+    parent = UnisDispatch.create_directories(extended_dir, root)
+    dispatch.DispatchFile(xndfile, parent, metadata = { "scene_id": scene_id })
 
 def main():
     parser = argparse.ArgumentParser(
         description="Import a Landsat image file into EODN")
     parser.add_argument('-f', '--file', type=str, help='The file to upload', required=True)
     parser.add_argument('-s', '--scene', type=str, help='The scene ID', required=True)
+    parser.add_argument('-d', '--dir', type=str, help='The parent directory name', required=True)
 
     args = parser.parse_args()
     
@@ -61,7 +50,8 @@ def main():
     ret = upload_to_eodn(xndfile, args.file)
     if ret:
         exit(1)
-    unis_import(xndfile, args.scene)
+
+    unis_import(xndfile, args.scene, args.dir)
 
     print "Done!"
 
