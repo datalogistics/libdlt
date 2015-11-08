@@ -40,7 +40,7 @@ def on_message(ws, message):
 def on_error(ws, error):    
     print(error)
     
-def close_handler :
+def close_handler():
     time.sleep(TIMEOUT)
     initSockets(host)
     
