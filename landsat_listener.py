@@ -9,6 +9,7 @@ from subprocess import call
 
 VIZ_HREF = "http://dlt.incntre.iu.edu:42424"
 EXTS     = ["gz", "bz", "zip", "jpg", "png"]
+TIMEOUT = 10  # In seconds
 
 def on_message(ws, message):
     global SCENES
@@ -36,36 +37,44 @@ def on_message(ws, message):
         except Exception as e:
             print "ERROR calling lors_download %s" % e
 
-def on_error(ws, error):
+def on_error(ws, error):    
     print(error)
-
+    
+def close_handler :
+    time.sleep(TIMEOUT)
+    initSockets(host)
+    
 def on_close(ws):
+    close_handler()
     print("### closed ###")
-
+    
 def on_open(ws):
-    pass
+    print "WS connectd"
 
-if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser(
-        description="Listen for and then process a particular LANDSAT scene")
-    parser.add_argument('-s', '--scenes', type=str, help='Comma-separated list of scenes to look for', required=True)
-    parser.add_argument('-H', '--host', type=str, help='The Exnode service',
-                        default="ws://dev.incntre.iu.edu:8888/subscribe/exnode")
-
-    args = parser.parse_args()
-
-    global SCENES
-    #websocket.enableTrace(True)
-    host = args.host
-    SCENES = args.scenes.split(',')
-
-    print "Listening for SCENES: %s" % SCENES
-
+def initSockets(host):
     ws = websocket.WebSocketApp(host,
                                 on_message = on_message,
                                 on_error = on_error,
                                 on_close = on_close)
     ws.on_open = on_open
     ws.run_forever()
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(
+        description="Listen for and then process a particular LANDSAT scene")
+    parser.add_argument('-s', '--scenes', type=str, help='Comma-separated list of scenes to look for', required=True)
+    parser.add_argument('-H', '--host', type=str, help='The Exnode service',
+                        default="ws://localhost:8888/subscribe/exnode")
+
+    args = parser.parse_args()
+
+    global SCENES
+    global host
+    #websocket.enableTrace(True)
+    host = args.host
+    SCENES = args.scenes.split(',')
+
+    print "Listening for SCENES: %s" % SCENES
+
+    initSockets(host)     
     
