@@ -62,9 +62,9 @@ class Listener(object):
         
     def start(self):
         ws = websocket.WebSocketApp(self._url,
-                                    self.on_message = on_message,
-                                    self.on_error = on_error,
-                                    self.on_close = on_close)
+                                    on_message = self.on_message,
+                                    on_error = self.on_error,
+                                    on_close = self.on_close)
         ws.on_open = self.on_open
         ws.run_forever()
         
