@@ -6,14 +6,22 @@ import sys
 import json
 import argparse
 from subprocess import call
+import signal
 
 VIZ_HREF = "http://dlt.incntre.iu.edu:42424"
 EXTS     = ["gz", "bz", "zip", "jpg", "png"]
 TIMEOUT = 10  # In seconds
 
+def signal_handler(signal, frame):
+    print('Exiting the program')
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
+
+        
 def on_message(ws, message):
     global SCENES
-
+    
     js = json.loads(message)
     try:
         href  = js['selfRef']
@@ -58,8 +66,8 @@ def initSockets(host):
                                 on_close = on_close)
     ws.on_open = on_open
     ws.run_forever()
-if __name__ == "__main__":
 
+def main ():    
     parser = argparse.ArgumentParser(
         description="Listen for and then process a particular LANDSAT scene")
     parser.add_argument('-s', '--scenes', type=str, help='Comma-separated list of scenes to look for', required=True)
@@ -78,3 +86,5 @@ if __name__ == "__main__":
 
     initSockets(host)     
     
+if __name__ == "__main__":
+    main()
