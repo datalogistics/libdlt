@@ -34,7 +34,7 @@ setup(
         ],
     entry_points = {
         'console_scripts': [
-            'landsat_listeners = tools.landsat_listener:main',
+            'eodn_feed = tools.eodn_feed:main',
             'landsat_download = tools.downloader:main',
         ]
     }
