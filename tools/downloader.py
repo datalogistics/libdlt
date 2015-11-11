@@ -28,17 +28,20 @@ def download(host,scenes):
         js = r.json()
     except ValueError:
         print "Download exnode metadata from Url " + url  + " failed"
-        return 
-
+        return    
+    results = []
     for i in js:
         href = i['selfRef']
         fname = i['name']
-        ext   = fname.split('.')[-1]
+        ext   = fname.split('.')[-1]        
         if ext in EXTS:
             try:
-                results = Popen(['lors_download', '-t', '10', '-b', '5m', '-V', '1', '-X', VIZ_HREF, '-f', href])
+                results.append(Popen(['lors_download', '-t', '10', '-b', '5m', '-V', '1', '-X', VIZ_HREF, '-f', href]))
             except Exception as e:
-                print "ERROR calling lors_download %s" % e
+                print ("ERROR calling lors_download for scene "+ fname + " %s") % e
+    for i in results:
+        i.wait()
+            
 
 def main ():    
     parser = argparse.ArgumentParser(
