@@ -1,0 +1,2 @@
+include config/depots.json
+include config/depots-pruned-dlt.json

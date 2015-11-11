@@ -13,14 +13,13 @@ setup(
     version = "0.0.1",
     author = "Prakash",
     author_email = "prakraja@umail.iu.edu",
-    description = ("An demonstration of how to create, document, and publish "
-                                   "to the cheese shop a5 pypi.org."),
+    description = ("DLT tools - basically a landsat listener and downloader"),
     license = "BSD",
-    keywords = "example documentation tutorial",
-    url = "http://packages.python.org/an_example_pypi_project",
+    keywords = "dlt tools",
+    url = "https://github.com/datalogistics/dlt-misc",
     packages=['tools'],
     package_data={'tools' : ['*']},
-    long_description=read('README.org'),
+    long_description="Dlt tools",
     include_package_data = True,
     install_requires=[
         "websocket-client>=0.34",
@@ -39,3 +38,4 @@ setup(
     }
 )
     
+
