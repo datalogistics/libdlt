@@ -25,7 +25,7 @@ def on_message(ws, message):
     js = json.loads(message)
     try:
         href  = js['selfRef']
-        curr  = js['properties']['metadata']['scene_id']
+        curr  = js['metadata']['scene']
         fname = js['name']
         size  = js['size']
         ext   = fname.split('.')[-1]
@@ -72,8 +72,8 @@ def main ():
         description="Listen for and then process a particular LANDSAT scene")
     parser.add_argument('-s', '--scenes', type=str, help='Comma-separated list of scenes to look for', required=True)
     parser.add_argument('-H', '--host', type=str, help='The Exnode service',
-                        default="ws://localhost:8888/subscribe/exnode")
-
+                        default="ws://dev.crest.iu.edu:8888/subscribe/exnode")
+    
     args = parser.parse_args()
 
     global SCENES

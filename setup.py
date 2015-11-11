@@ -23,7 +23,8 @@ setup(
     long_description=read('README.org'),
     include_package_data = True,
     install_requires=[
-        "websocket-client>=0.34"
+        "websocket-client>=0.34",
+        "requests"
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",
