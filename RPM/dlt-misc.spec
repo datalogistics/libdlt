@@ -1,58 +1,39 @@
-%define default_release 1
+%define name dlt-tools
+%define version 0.0.1
+%define unmangled_version 0.0.1
+%define unmangled_version 0.0.1
+%define release 1
 
-Name: dlt-tools
-Version: 1.0
-Release: %{?release}%{!?release:%{default_release}}
-Summary: Dlt tools
-
-
-Group:	        Application/System
-License:	http://www.apache.org/licenses/LICENSE-2.0
-URL:	        https://github.com/datalogistics/dlt-misc
-Source0:	%{name}.tar.gz
-BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}
-
-BuildRequires: tcl
-Requires: tcl
+Summary: DLT tools - basically a landsat listener and downloader
+Name: %{name}
+Version: %{version}
+Release: %{release}
+Source0: %{name}-%{unmangled_version}.tar.gz
+License: BSD
+Group: Development/Libraries
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
+Prefix: %{_prefix}
+BuildArch: noarch
+Vendor: Prakash <prakraja@umail.iu.edu>
+Requires: python python-requests python-setuptools>=10
+Url: https://github.com/datalogistics/dlt-misc
 
 %description
-Bunch of dlt scripts to listen for landsat scenes and upload/download stuff
+Dlt tools
 
 %prep
-%setup -n dlt-tools
+%setup -n %{name}-%{unmangled_version} -n %{name}-%{unmangled_version}
 
-# %prep
-# %setup -n ibp_server
 
 %build
-mkdir -p dlt-tools
-
-# cmake -DCMAKE_INSTALL_PREFIX:PATH=%{buildroot} .
-# make
+python setup.py build
 
 %install
-install -m 755 landsat_listener.py ${RPM_BUILD_ROOT}/usr/bin
-# install -m 755 landsat_listener.py ${RPM_BUILD_ROOT}/usr/dlt-misc
-# rm -rf ${RPM_BUILD_ROOT}/bin
-
-%files
-%defattr(-,root,root)
-%{_bindir}/*
-%{_libdir}/*
-%{_includedir}/*.h
-%{_datadir}/lors/*.tcl
-%{_datadir}/lors/*.gif
-%{_datadir}/lors/*.pl
-%{_datadir}/lors/pkill
+python setup.py install --single-version-externally-managed -O1 --root=$RPM_BUILD_ROOT --record=INSTALLED_FILES
 
 %clean
-rm -rf %{buildroot}
+rm -rf $RPM_BUILD_ROOT
+rm -f INSTALLED_FILES
 
-# %post
-# rpmconf --owner=accre-ibp-server
-
-%files
-*
-# %changelog
-# * Tue Nov 03 2015 <jayaajay@indiana.edu> 1.0-9-accre-ibp-server
-# - Updated the paths to executables and sysconf files.
+%files -f INSTALLED_FILES
+%defattr(-,root,root)

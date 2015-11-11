@@ -23,7 +23,8 @@ setup(
     include_package_data = True,
     install_requires=[
         "websocket-client>=0.34",
-        "requests"
+        "requests",
+        "six>=1.6"
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",
