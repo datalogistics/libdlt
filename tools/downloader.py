@@ -21,7 +21,7 @@ def signal_handler(signal, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
         
-def download(host,scenes):
+def download(host,scenes,viz=None):
     try:
         url = host + "?metadata.scene=" + ",".join(scenes)
         r = requests.get(url)        
@@ -36,7 +36,11 @@ def download(host,scenes):
         ext   = fname.split('.')[-1]        
         if ext in EXTS:
             try:
-                results.append(Popen(['lors_download', '-t', '10', '-b', '5m', '-V', '1', '-X', VIZ_HREF, '-f', href]))
+                cmd = 'lors_download -t 10 -b 5m -V 1'
+                if viz:
+                    cmd += ' -X '+viz + ' '
+                cmd += ' -f '+ href
+                results.append(Popen(cmd.split(" ")))
             except Exception as e:
                 print ("ERROR calling lors_download for scene "+ fname + " %s") % e
     for i in results:
@@ -45,16 +49,18 @@ def download(host,scenes):
 
 def main ():    
     parser = argparse.ArgumentParser(
-        description="Listen for and then process a particular LANDSAT scene")
+    description="Listen for and then process a particular LANDSAT scene")
     parser.add_argument('-s', '--scenes', type=str, help='Comma-separated list of scenes to look for', required=True)
     parser.add_argument('-H', '--host', type=str, help='The Exnode service',
                         default="http://dev.crest.iu.edu:8888/exnodes")
+    parser.add_argument('-X', '--visualize', type=str, help='Enable visualization')
     args = parser.parse_args()    
     #websocket.enableTrace(True)
     host = args.host
     SCENES = args.scenes.split(',')
+    vizurl = args.visualize
     print "Downloading SCENES: %s" % SCENES
-    download(host,SCENES)
+    download(host,SCENES,vizurl)
     
 if __name__ == "__main__":
     main()
