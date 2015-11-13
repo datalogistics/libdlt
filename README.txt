@@ -1,8 +1,3 @@
-				________
-
-				 README
-				________
-
 Table of Contents
 _________________
 
@@ -18,10 +13,9 @@ _________________
 ~~~~~~~~~~~~~~~~
 
   Basically contains 2 Clis
-  - landsat_listner : Listen for new scenes from host using websocket
-    and download when a new file is uploaded
-  - landsat_download : Download the existing scenes specified in the
-    list
+  - eodn_listner : Listen for new scenes from host using websocket and
+    download when a new file is uploaded
+  - eodn_download : Download the existing scenes specified in the list
 
 
 1.2 Arguments
@@ -29,4 +23,5 @@ _________________
 
   It contains the following arguments:
   - -s , --scenes : comma separated list of scenes
-  - -H , --host : host to get scenes from Eg: [http://dev.crest.iu.edu:8888/exnodes]
+  - -H , --host : host to get scenes from Eg:
+     [http://dev.crest.iu.edu:8888/exnodes]

@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import websocket
 import thread
 import time
 import sys
@@ -55,7 +54,6 @@ def main ():
                         default="http://dev.crest.iu.edu:8888/exnodes")
     parser.add_argument('-X', '--visualize', type=str, help='Enable visualization')
     args = parser.parse_args()    
-    #websocket.enableTrace(True)
     host = args.host
     SCENES = args.scenes.split(',')
     vizurl = args.visualize
