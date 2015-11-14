@@ -54,7 +54,7 @@ setup(
     install_requires=[
         "websocket-client>=0.34",
         "requests",
-        "six>=1.10.0"
+        "six>=1.8.0"
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",
