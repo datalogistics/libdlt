@@ -86,11 +86,18 @@ def constructQuery(args):
         result["protocol"] = "ws"
         
     if args.scenes:
-        query['metadata.scene'] = { 'in': args.scenes.split(',') }
+        if not query.has_key('metadata.scene'):
+            query['metadata.scene'] = {}
+        query['metadata.scene']['in']= args.scenes.split(',')
+        
+    if args.regex:
+        if not query.has_key('metadata.scene'):
+            query['metadata.scene'] = {}
+        query['metadata.scene']['reg']=args.regex
         
     if args.productcode:
         query['metadata.productCode'] = { 'in': args.productcode.split(',') }
-    
+
     result["query"] = query
     return result
 
@@ -106,6 +113,8 @@ def main ():
     parser.add_argument('-v', '--verbose', action='store_true', help='Produce verbose output from the script')
     parser.add_argument('-U', '--visualhost', type=str,
                         help='The hostname of the dlt-web client to display visual download information to')
+    parser.add_argument('-r', '--regex', type=str,
+                        help='Filter scenes by regex and download')
     parser.add_argument('-S', '--ssl', action='store_true', help='Use ssl for socket connection')
     args = parser.parse_args()
     
