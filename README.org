@@ -10,3 +10,5 @@ Basically contains 2 Clis
 It contains the following arguments:
 - -s , --scenes  : comma separated list of scenes
 - -H , --host    : host to get scenes from Eg: http://dev.crest.iu.edu:8888/exnodes
+- -r , --regex   : Pass a regex to fetch by ~/exnodes?metadata.scene=reg=/<Argumnet>~
+		   Download everything that matches the regex

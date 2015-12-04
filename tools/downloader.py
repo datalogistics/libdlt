@@ -8,6 +8,7 @@ import signal
 import json
 import requests
 from subprocess import Popen
+import urllib
 
 VIZ_HREF = "http://dlt.incntre.iu.edu:42424"
 EXTS     = ["gz", "bz", "zip", "jpg", "png"]
@@ -20,9 +21,12 @@ def signal_handler(signal, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
         
-def download(host,scenes,viz=None):
+def download(host,scenes=None,viz=None,reg=None):
     try:
-        url = host + "?metadata.scene=" + ",".join(scenes)
+        if scenes:
+            url = host + "?metadata.scene=" + ",".join(scenes) + "&"
+        if reg:        
+            url = host + "?metadata.scene=reg=" + urllib.quote(reg) + "&"            
         r = requests.get(url)        
         js = r.json()
     except ValueError:
@@ -32,7 +36,7 @@ def download(host,scenes,viz=None):
     for i in js:
         href = i['selfRef']
         fname = i['name']
-        ext   = fname.split('.')[-1]        
+        ext   = fname.split('.')[-1]
         if ext in EXTS:
             try:
                 cmd = 'lors_download -t 10 -b 5m -V 1'
@@ -49,16 +53,25 @@ def download(host,scenes,viz=None):
 def main ():    
     parser = argparse.ArgumentParser(
     description="Listen for and then process a particular LANDSAT scene")
-    parser.add_argument('-s', '--scenes', type=str, help='Comma-separated list of scenes to look for', required=True)
+    parser.add_argument('-s', '--scenes', type=str, help='Comma-separated list of scenes to look for')
+    parser.add_argument('-r', '--regex', type=str, help='Comma-separated list of scenes to look for')
     parser.add_argument('-H', '--host', type=str, help='The Exnode service',
                         default="http://dev.crest.iu.edu:8888/exnodes")
     parser.add_argument('-X', '--visualize', type=str, help='Enable visualization')
     args = parser.parse_args()    
     host = args.host
-    SCENES = args.scenes.split(',')
+    regex = args.regex
+    SCENES = args.scenes
     vizurl = args.visualize
-    print "Downloading SCENES: %s" % SCENES
-    download(host,SCENES,vizurl)
+    if SCENES:
+        print "Downloading SCENES: %s" % SCENES
+    elif regex:
+        print "Downloading using regex %r" % regex
+    else:
+        print "Give a regex or scene , use -h to see options"
+        return
+    
+    download(host,SCENES,vizurl,regex)
     
 if __name__ == "__main__":
     main()
