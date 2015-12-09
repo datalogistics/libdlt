@@ -6,8 +6,10 @@ import argparse
 from subprocess import call
 import signal
 import json
+import logging
 import requests
 from subprocess import Popen
+import cmdparser
 import urllib
 
 VIZ_HREF = "http://dlt.incntre.iu.edu:42424"
@@ -20,20 +22,11 @@ def signal_handler(signal, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-        
-def download(host,scenes=None,viz=None,reg=None):
-    try:
-        if scenes:
-            url = host + "?metadata.scene=" + ",".join(scenes) + "&"
-        if reg:        
-            url = host + "?metadata.scene=reg=" + urllib.quote(reg) + "&"            
-        r = requests.get(url)        
-        js = r.json()
-    except ValueError:
-        print "Download exnode metadata from Url " + url  + " failed"
-        return    
+
+def runLors(exlist,viz=False):
     results = []
-    for i in js:
+    for i in exlist:
+        print i
         href = i['selfRef']
         fname = i['name']
         ext   = fname.split('.')[-1]
@@ -45,33 +38,54 @@ def download(host,scenes=None,viz=None,reg=None):
                 cmd += ' -f '+ href
                 results.append(Popen(cmd.split(" ")))
             except Exception as e:
-                print ("ERROR calling lors_download for scene "+ fname + " %s") % e
+                logging.info ("ERROR calling lors_download for scene "+ fname + " with error " + str(e)) 
     for i in results:
         i.wait()
-            
 
-def main ():    
-    parser = argparse.ArgumentParser(
-    description="Listen for and then process a particular LANDSAT scene")
-    parser.add_argument('-s', '--scenes', type=str, help='Comma-separated list of scenes to look for')
-    parser.add_argument('-r', '--regex', type=str, help='Comma-separated list of scenes to look for')
-    parser.add_argument('-H', '--host', type=str, help='The Exnode service',
-                        default="http://dev.crest.iu.edu:8888/exnodes")
-    parser.add_argument('-X', '--visualize', type=str, help='Enable visualization')
-    args = parser.parse_args()    
+def download(host,info,scenes=True,viz=False,reg=False,folder=False,ssl=False,verbose=False):
+    try:
+        url = host + "/exnodes"
+        fieldStr = "&fields=selfRef,name&mode=file"
+        if reg:        
+            url += "?metadata.scene=reg=" + urllib.quote(info) + fieldStr
+        elif folder:
+            url += "?parent=recfind=" + info + fieldStr
+        elif scenes:
+            """ Process Scene list boolean last since it is always set to true by default """
+            url+= "?metadata.scene=" + info + fieldStr
+
+
+        logging.info("Url used is " + url)
+        if ssl :
+            r = requests.get(url,cert=('./dlt-client.pem','./dlt-client.pem'),verify=False)
+        else:
+            r = requests.get(url)            
+        js = r.json()
+        if not js:
+            logging.info("Probably incorrect arguments - or something failed ")
+            logging.debug("Url used is " + url + " - Please ensure that unis supports all used features ")
+            return
+        
+        logging.debug("Response from UNIS " + str(js))
+        runLors(js,viz)
+    except ValueError:
+        logging.info("Download exnode metadata from Url " + url  + " failed")
+        return    
+    
+            
+        
+def main ():
+    args = cmdparser.parseArgs()
+    info = args.sceneInfo
     host = args.host
     regex = args.regex
-    SCENES = args.scenes
-    vizurl = args.visualize
-    if SCENES:
-        print "Downloading SCENES: %s" % SCENES
-    elif regex:
-        print "Downloading using regex %r" % regex
-    else:
-        print "Give a regex or scene , use -h to see options"
-        return
-    
-    download(host,SCENES,vizurl,regex)
+    ssl = args.ssl
+    scenes = args.scenes
+    folder = args.folder
+    vizurl = args.visualize    
+    typeStr = 'Scene list' if scenes else 'Regex' if regex else 'Folder Id' if folder else  "Unknown"
+    logging.info("Downloading Using info: "+  info +  " and tpye :  " + typeStr)
+    download(host,info,scenes,vizurl,regex,folder,ssl)
     
 if __name__ == "__main__":
     main()
