@@ -377,7 +377,10 @@ def runCommand(arr):
     else :
         show_help()
 
-if __name__ =="__main__" :
+def main() :
     init_availabe_commands() ### Initialize availabe commands
     while 1:
         parse_args(raw_input("> "))
+
+if __name__ =="__main__" :
+    main()

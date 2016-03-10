@@ -65,6 +65,7 @@ setup(
         'console_scripts': [
             'eodn_feed = tools.eodn_feed:main',
             'eodn_download = tools.downloader:main',
+            'dlt_cli = tools.ncli:main'
         ]
     },
     options = {'bdist_rpm':{'post_install' : 'scripts/rpm_postinstall.sh'}},
