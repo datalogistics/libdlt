@@ -1,5 +1,5 @@
 """ A Cli app to browse UNIS , exnodes and Blipp """
-# import os
+import os
 import sys
 import cmd
 import readline
@@ -89,11 +89,12 @@ def get_query_params (arr) :
     s = ""
     showHelp = False
     global opmap
-    while len(arr) > 1 :
+    print arr
+    while len(arr) >= 2 :
         if arr[0] == '?' :
             showHelp = True
-        elif arr[0] in opmap :
-            s+= opmap[arr[0]] + "=" + arr[1] + "=" + arr[2] + "&"
+        elif arr[1] in opmap :
+            s+= arr[0] + "=" + opmap[arr[1]] + "=" + arr[2] + "&"
         arr = arr[3:]
     return s,showHelp
 
@@ -101,6 +102,7 @@ def get_query_params (arr) :
 global_last_json = []
 global_cmd_arr = []
 global_available_cd = {}
+global_cdp = [0,0,0]    ## Stores a parent query list
 
 def get_unis_list() :
     obj = {}
@@ -142,6 +144,8 @@ def init_availabe_commands() :
                 global_available_cd = processUnisTop(j)
         elif length > 2 :
             obj = {}
+            
+            obj['Keys to filter by'] = { 'help' : "kk, kk  , lll"}
             for i in opmap :
                 obj[i] = { 'help' : "Query stuff " }
             global_available_cd = obj
@@ -176,6 +180,7 @@ def show (arr):
     request , display and store in last_json """
     global global_last_json
     global global_cmd_arr
+    global global_cdp
     ar = []
     ar.extend(global_cmd_arr)
     ar.extend(arr[1:])
@@ -183,7 +188,15 @@ def show (arr):
         if ar[1] in unislist :
             ob = unislist[ar[1]]
             q,h = get_query_params(ar[3:])
-            u = get_url(ob) + "/"+ar[2] + "?" + q
+            qp,h = get_query_params(global_cdp)
+            if q :
+                q = q + "&" + qp
+            else :
+                q = qp
+            if len(ar) > 2 :
+                u = get_url(ob) + "/"+ar[2] + "?" + q
+            else :
+                u = get_url(ob)
             display("Url is " + u )
             try :
                 j = get(u,ob)
@@ -201,7 +214,6 @@ def show (arr):
             display("Not Present in unisList")
     else :
         display("Not implemented ")
-
 
 # defining all the commands defined in the command map
 def cd_cmd(arr) :
@@ -226,6 +238,55 @@ def cd_cmd(arr) :
         display("Current stack is " + " ".join(global_cmd_arr))
     else :
         cd_cmd(ar)
+
+def cdp_cmd (arr) :
+    """ Gets a list of ids and sets as parent filter for the exnodes """
+    global global_last_json
+    global global_cmd_arr
+    global global_cdp
+    if len(arr) == 1 :
+        global_cdp = []
+        display("Removed any parent filter ")
+        return
+    ar = []
+    ar.extend(global_cmd_arr)
+    ar.extend(arr[1:])
+    if len(ar) < 3 :
+        display("Need to cd more to set parent query , the current status is ")
+        pwd_cmd()
+        return
+
+    if ar[0] == 'unis' :
+        if ar[1] in unislist :
+            ob = unislist[ar[1]]
+            q,h = get_query_params(ar[3:])
+            if len(ar) > 2 :
+                u = get_url(ob) + "/"+ar[2] + "?" + q
+            else :
+                u = get_url(ob)
+            display("Url is " + u )
+            try :
+                j = get(u,ob)
+            except Exception as e :
+                print e
+            else :
+                try :
+                    parr = map((lambda x : x['id']),j)
+                except Exception as e:
+                    print e
+                else :
+                    global_cdp[0] = 'parent'
+                    global_cdp[1] = '='
+                    ### number of ids are limited to 10
+                    global_cdp[2] = ",".join(parr[:10])
+        else :
+            display("Not Present in unisList")
+    else :
+        display("Not implemented ")
+
+
+
+
 def pwd_cmd(arr=None) :
     display(global_cmd_arr)
 
@@ -235,6 +296,28 @@ def ls_cmd(arr):
 
 def export_cmd(arr):
     """ Export given json or last json to file """
+    global global_last_json
+    name = os.path.expanduser('~') + "/temp.json"
+    i = 0
+    if len(arr) == 1 :
+        """ Export last to default file in home """
+        i = 0
+    elif len(arr) > 1 :
+        try :
+            i = int(arr[1])
+        except:
+            # Use arr[1] as filename
+            name = arr[1]
+        else:
+            name = arr[1] if len(arr) >= 2 else name
+
+    if i < len(global_last_json) :
+        f = open(name,"w")
+        f.write(str(global_last_json[i]['data']))
+        f.close()
+        display("File written to " + os.path.abspath(f.name))
+    else :
+        display("No json fetched available at index "+ str(i))
 
 command_map = {
     'ls' : {
@@ -244,6 +327,10 @@ command_map = {
     'cd' : {
         'f' : cd_cmd ,
         'help' : ""
+        },
+    'cdp' : {
+        'f' : cdp_cmd,
+        'help' : "Specially for exnodes - sets the query as parent "
         },
     'show' : {
         'f' : show,
