@@ -144,7 +144,6 @@ def init_availabe_commands() :
                 global_available_cd = processUnisTop(j)
         elif length > 2 :
             obj = {}
-            
             obj['Keys to filter by'] = { 'help' : "kk, kk  , lll"}
             for i in opmap :
                 obj[i] = { 'help' : "Query stuff " }
@@ -154,8 +153,10 @@ def init_availabe_commands() :
 
 def show_help(a=None,b=None) :
     display("Help : ")
-    for i in global_available_cd :
-        display(i + " -> " + global_available_cd[i]['help'])
+    ls = command_map.keys()
+    display("Possilbe commands are : " + ",".join(ls))
+    for i in command_map :
+        display(i + " -> " + command_map[i]['help'])
 
 def show_last_json(arr) :
     global global_last_json
@@ -292,7 +293,8 @@ def pwd_cmd(arr=None) :
 
 def ls_cmd(arr):
     """ Display all available commands with help """
-    show_help()
+    for i in global_available_cd :
+        display(i + " -> " + global_available_cd[i]['help'])
 
 def export_cmd(arr):
     """ Export given json or last json to file """
@@ -355,6 +357,10 @@ command_map = {
     '?' : {
         'f' : show_help,
         'help' : "Shows Help"
+        },
+    'exit' : {
+        'f' : (lambda x=None,y=None : sys.exit(0)),
+        'help' : "exit"
         }
     }
 
