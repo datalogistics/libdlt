@@ -12,3 +12,19 @@ It contains the following arguments:
 - -H , --host    : host to get scenes from Eg: http://dev.crest.iu.edu:8888/exnodes
 - -r , --regex   : Pass a regex to fetch by ~/exnodes?metadata.scene=reg=/<Argumnet>~
 		   Download everything that matches the regex
+
+** Using path to download folders 
+
+Currently folder like downloads with wildcards are only supported in the downloader and can be used in the following way , where -p indicates that it is a path and -F indicates the filter
+
+#+begin_SRC bash
+eodn_download -p Landsat/LC8/006/040/2016/ -F "*.png"
+
+# Recurrsively download all the files under the folder (No way to download only the immediate files below the folder exist in this way)
+eodn_download -p Landsat/LC8/006/ -F "*.png"
+
+#+end_SRC
+
+
+
+
