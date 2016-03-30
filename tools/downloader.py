@@ -123,7 +123,10 @@ def get_from_path(host,path) :
 # json = get_from_path("http://dev.crest.iu.edu:8888","Landsat/LC8/008/")
 
 def main ():
+    global parent_attr
     args = cmdparser.parseArgs()
+    if args.selfref :
+        parent_attr = 'selfRef'
     info = args.sceneInfo
     host = args.host
     regex = args.regex

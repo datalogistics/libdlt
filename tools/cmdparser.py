@@ -11,6 +11,7 @@ def parseArgs():
     parser.add_argument('-F', '--filter', type=str, help='filter files by unix wildcard')
     parser.add_argument('-H', '--host', type=str, help='The Exnode service',
                         default="http://dev.crest.iu.edu:8888")
+    parser.add_argument('-n', '--selfref', action='store_true', help='Use selfref as the parent attr instead of id - Do this after unis behavior is updated')
     parser.add_argument('-X', '--visualize', type=str, help='Enable visualization')
     parser.add_argument('-S', '--ssl', action='store_true', help='Use ssl for socket connection')
     parser.add_argument('-v', '--verbose', action='store_true', help='Produce verbose output from the script')
