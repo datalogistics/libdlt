@@ -27,19 +27,17 @@ signal.signal(signal.SIGINT, signal_handler)
 def runLors(exlist,viz=False):
     results = []
     for i in exlist:
-        print i
         href = i['selfRef']
         fname = i['name']
         ext   = fname.split('.')[-1]
-        if ext in EXTS:
-            try:
-                cmd = 'lors_download -t 10 -b 5m -V 1'
-                if viz:
-                    cmd += ' -X '+viz + ' '
-                cmd += ' -f '+ href
-                results.append(Popen(cmd.split(" ")))
-            except Exception as e:
-                logging.info ("ERROR calling lors_download for scene "+ fname + " with error " + str(e))
+        try:
+            cmd = 'lors_download -t 10 -b 5m -V 1'
+            if viz:
+                cmd += ' -X '+viz + ' '
+            cmd += ' -f '+ href
+            results.append(Popen(cmd.split(" ")))
+        except Exception as e:
+            logging.info ("ERROR calling lors_download for scene "+ fname + " with error " + str(e))
     for i in results:
         i.wait()
 
