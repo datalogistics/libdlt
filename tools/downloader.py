@@ -109,18 +109,14 @@ def get_from_path(host,path) :
     attr = 'name'
     query = "parent=null="
     query += "&"+attr+"="+arr[0]
-    parent = map(lambda x : x.get(parent_attr),get_exnode_json(host,query))
+    parent = get_exnode_json(host,query)
     js = []
     for i in arr[1:] :
         if parent and i :
-            query = "parent=" + ",".join(parent)
+            query = "parent=" + ",".join(map(lambda x : x.get(parent_attr),parent))
             query += "&"+attr+"="+i
             js = get_exnode_json(host,query)
-            parent = map(lambda x : x.get(parent_attr),js)
-    if parent:
-        query = "parent=" + ",".join(parent)
-        js = get_exnode_json(host,query)
-
+            parent = js
     return js
 
 # json = get_from_path("http://dev.crest.iu.edu:8888","Landsat/LC8/008/038/2016")
