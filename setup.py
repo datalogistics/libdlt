@@ -11,7 +11,7 @@ def read(fname):
 
 setup(
     name = "dlt-tools",
-    version = "0.1.dev",
+    version = "2.0.dev",
     author = "Prakash",
     author_email = "prakraja@umail.iu.edu",
     description = ("DLT tools - basically a landsat listener and downloader"),
