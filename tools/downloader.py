@@ -168,10 +168,11 @@ def main ():
             runLors(lorsarr,vizurl)
     else :
         download(host,info,scenes,vizurl,regex,folder,ssl)
+    fs.close()
     cmd = "bash runlors.sh.tmp"
     i = Popen(cmd.split(" "))
     i.wait()
     logging.info("You can delete runlors.sh.tmp - Leaving it for debuggin purpose")
-    fs.close()
+
 if __name__ == "__main__":
     main()
