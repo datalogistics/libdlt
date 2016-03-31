@@ -22,7 +22,7 @@ def signal_handler(signal, frame):
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
-
+fs = open("runlors.sh.tmp","w")
 
 def runLors(exlist,viz=False):
     results = []
@@ -35,7 +35,8 @@ def runLors(exlist,viz=False):
             if viz:
                 cmd += ' -X '+viz + ' '
             cmd += ' -f '+ href
-            results.append(Popen(cmd.split(" ")))
+            fs.write(cmd + " || : \n")
+            # results.append(Popen(cmd.split(" ")))
         except Exception as e:
             logging.info ("ERROR calling lors_download for scene "+ fname + " with error " + str(e))
     for i in results:
@@ -57,7 +58,7 @@ def _download(url,viz=False,ssl=False):
         # print ",".join(map(lambda x : x.get('name'),js))
         runLors(js,viz)
     except ValueError:
-        logging.info("Download exnode metadata from Url " + url  + " failed")
+        logging.info("Error : Download exnode metadata from Url " + url  + " failed")
         return
 
 def download(host,info,scenes=True,viz=False,reg=False,folder=False,ssl=False,verbose=False):
@@ -73,6 +74,7 @@ def download(host,info,scenes=True,viz=False,reg=False,folder=False,ssl=False,ve
     _download(url,viz)
 
 def get_exnode_json(host,query) :
+    query += "&fields=name,mode,id,selfRef,parent";
     url = host + "/exnodes?" + query
     try :
         logging.info("Download exnode metadata from Url " + url)
@@ -82,7 +84,7 @@ def get_exnode_json(host,query) :
         print e
         return []
 
-def get_child_json(host,val,qstr=''):
+def get_child_json(host,val,qstr='') :
     """ Get the json of all items with this parent recurssively"""
     if not val :
         return []
@@ -92,7 +94,7 @@ def get_child_json(host,val,qstr=''):
     for i in js :
         if i.get('mode') == "directory" :
             par.append(i.get(parent_attr))
-        elif i.get('mode') == "file" :
+        elif i.get('mode') == "file":
             ret.append(i)
     ret.extend(get_child_json(host,",".join(par)))
     return ret
@@ -108,7 +110,7 @@ def get_from_path(host,path) :
     query = "parent=null="
     query += "&"+attr+"="+arr[0]
     parent = get_exnode_json(host,query)
-    js = []
+    js = parent
     for i in arr[1:] :
         if parent and i :
             query = "parent=" + ",".join(map(lambda x : x.get(parent_attr),parent))
@@ -119,6 +121,17 @@ def get_from_path(host,path) :
 
 # json = get_from_path("http://dev.crest.iu.edu:8888","Landsat/LC8/008/038/2016")
 # json = get_from_path("http://dev.crest.iu.edu:8888","Landsat/LC8/008/")
+def runlors_dir(host,parent,flter,vizurl):
+    """ recurrsively runlors on file list and use filter """
+    """ FIXME This can blow the stack , need to make it non-recurssive"""
+    js = get_exnode_json(host,"parent="+parent)
+    lorsarr = []
+    for i in js :
+        if i.get('mode') == "file" and fnmatch.fnmatch(i.get('name'),flter) :
+            lorsarr.append(i)
+        elif i.get('mode') == "directory" :
+            runlors_dir(host,i.get('id'),flter,vizurl)
+    runLors(lorsarr,vizurl)
 
 def main ():
     global parent_attr
@@ -140,17 +153,25 @@ def main ():
         flter = args.filter if args.filter else "*"
         """ Download using folder path  """
         json = get_from_path(host,path)
+        lorsarr = []
         for i in json :
             if i.get('mode') == "file" and fnmatch.fnmatch(i.get('name'),flter) :
-                _download(host+"/exnodes?id="+i.get('id'),ssl=ssl)
+                lorsarr.append(a)
             elif i.get('mode') == "directory" :
                 """ Get all immediate children of dir and run _download on them """
-                arr = get_child_json(host,i.get(parent_attr))
-                for a in arr :
-                    if a.get('mode') == "file" and fnmatch.fnmatch(a.get('name'),flter) :
-                        _download(host+"/exnodes?id="+a.get('id'),ssl=ssl)
+                runlors_dir(host,i.get('id'),flter,vizurl)
+                # arr = get_child_json(host,i.get(parent_attr))
+                # lorsarr = []
+                # for a in arr :
+                #     if a.get('mode') == "file" and fnmatch.fnmatch(a.get('name'),flter) :
+                #         lorsarr.append(a)
+            runLors(lorsarr,vizurl)
     else :
         download(host,info,scenes,vizurl,regex,folder,ssl)
-
+    cmd = "bash runlors.sh.tmp"
+    i = Popen(cmd.split(" "))
+    i.wait()
+    logging.info("You can delete runlors.sh.tmp - Leaving it for debuggin purpose")
+    fs.close()
 if __name__ == "__main__":
     main()
