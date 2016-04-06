@@ -42,7 +42,7 @@ def runLors(exlist,viz=False):
     for i in results:
         i.wait()
 
-def _download(url,viz=False,ssl=False):
+def _download(url,viz=False,ssl=False,flter='*'):
     try:
         logging.info("Url used is " + url)
         if ssl :
@@ -61,9 +61,9 @@ def _download(url,viz=False,ssl=False):
         logging.info("Error : Download exnode metadata from Url " + url  + " failed")
         return
 
-def download(host,info,scenes=True,viz=False,reg=False,folder=False,ssl=False,verbose=False):
+def download(host,info,scenes=True,viz=False,reg=False,folder=False,ssl=False,flter=".*",verbose=False):
     url = host + "/exnodes"
-    fieldStr = "&fields=selfRef,name&mode=file"
+    fieldStr = "&fields=selfRef,name&mode=file" + "&name=reg="+flter
     if reg:
         url += "?metadata.scene=reg=" + urllib.quote(info) + fieldStr
     elif folder:
@@ -149,8 +149,8 @@ def main ():
     typeStr = 'Scene list' if scenes else 'Regex' if regex else 'Folder Id' if folder else  "Unknown"
     logging.info("Downloading Using info: "+  info +  " and tpye :  " + typeStr)
     if path :
-        path = info
         flter = args.filter if args.filter else "*"
+        path = info
         """ Download using folder path  """
         json = get_from_path(host,path)
         lorsarr = []
@@ -160,14 +160,11 @@ def main ():
             elif i.get('mode') == "directory" :
                 """ Get all immediate children of dir and run _download on them """
                 runlors_dir(host,i.get('id'),flter,vizurl)
-                # arr = get_child_json(host,i.get(parent_attr))
-                # lorsarr = []
-                # for a in arr :
-                #     if a.get('mode') == "file" and fnmatch.fnmatch(a.get('name'),flter) :
-                #         lorsarr.append(a)
             runLors(lorsarr,vizurl)
     else :
-        download(host,info,scenes,vizurl,regex,folder,ssl)
+        """ Flter works like a regex in case of normal regex query (inconsistent) """
+        flter = args.filter if args.filter else ".*"
+        download(host,info,scenes,vizurl,regex,folder,ssl,flter)
     fs.close()
     cmd = "bash runlors.sh.tmp"
     i = Popen(cmd.split(" "))
