@@ -34,7 +34,7 @@ Testing requires installation of lors-tools and python. Currently dlt-tools supp
 
 All the various environments are present as vagrant file with an init script to install dlt-lors and dlt-tools from the yum repo. Additionaly the home folder has been shared as /e , so this can be used to directly install and try dlt-tools.
 
-Run src_bash[:exports code]{vagrant up && vagrant ssh} on these images and use the shell to test it out.
+Run ~vagrant up && vagrant ssh~ on these images and use the shell to test it out.
 
 
 
