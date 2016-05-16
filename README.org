@@ -31,10 +31,20 @@ eodn_download -p Landsat/LC8/006/ -F "*.png"
 Testing requires installation of lors-tools and python. Currently dlt-tools supported systems is restricted by the support for lors-tools and hence the following are supported :
 - Centos 6,7 - 32 or 64 bit
 - RHEL 6,7
-
+Install vagrant from https://www.vagrantup.com/downloads.html
 All the various environments are present as vagrant file with an init script to install dlt-lors and dlt-tools from the yum repo. Additionaly the home folder has been shared as /e , so this can be used to directly install and try dlt-tools.
 
-Run ~vagrant up && vagrant ssh~ on these images and use the shell to test it out.
+Run ~vagrant up && vagrant ssh~ on these images from their respective folder and use the shell to test it out.
+
+- Generally  first test out lors tools using an exnode selfRef. Try running something like http://unis.incntre.iu.edu:8890/exnodes?limit=1&fields=selfRef to get a selfRef which can then be used to check using : 
+
+#+BEGIN_SRC bash
+lors_download -t 10 -b 5m -V 1 -f <Exnode selfRef>
+#+END_SRC
+
+- Then we can check out eodn_download from the above examples, where paths and names can be found either from http://dlt.crest.iu.edu/browser or using something like http://unis.incntre.iu.edu:8890/exnodes?limit=1&fields=selfRef,name
+
+
 
 
 

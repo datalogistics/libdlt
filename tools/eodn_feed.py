@@ -107,9 +107,9 @@ def main ():
     parser.add_argument('-s', '--scenes', type=str, help='Comma-separated list of scenes to look for')
     parser.add_argument('-p', '--productcode', type=str, help='Comma-separated list of products to look for')
     parser.add_argument('-H', '--host', type=str, help='The host name for the exnode UNIS instance',
-                        default="dev.crest.iu.edu")
+                        default="unis.crest.iu.edu")
     parser.add_argument('-P', '--port', type=int, help='The port for the exnode UNIS instance',
-                        default=8888)
+                        default=8890)
     parser.add_argument('-v', '--verbose', action='store_true', help='Produce verbose output from the script')
     parser.add_argument('-U', '--visualhost', type=str,
                         help='The hostname of the dlt-web client to display visual download information to')
