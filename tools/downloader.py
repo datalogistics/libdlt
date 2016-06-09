@@ -1,175 +1,111 @@
 #!/usr/bin/env python
-import thread
+
 import time
 import sys
+import os
 import argparse
-from subprocess import call
 import signal
 import json
 import logging
-import fnmatch
-import requests
-from subprocess import Popen
-import cmdparser
-import urllib
+import common
+import subprocess
+from pprint import pprint
+from common import ExnodeRESTQuery,parseArgs,unis_get
 
-VIZ_HREF = "http://dlt.incntre.iu.edu:42424"
-EXTS     = ["gz", "bz", "zip", "jpg", "png"]
-TIMEOUT = 10  # In seconds
-parent_attr = 'id'
 def signal_handler(signal, frame):
     print('Exiting the program')
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
-fs = open("runlors.sh.tmp","w")
 
-def runLors(exlist,viz=False):
-    results = []
-    for i in exlist:
-        href = i['selfRef']
-        fname = i['name']
-        ext   = fname.split('.')[-1]
+def download(count, exdict, viz=False, verbose=False):
+    cnt = 1
+    for path,xnds in exdict.iteritems():
+        pwd = os.getcwd()
         try:
-            cmd = 'lors_download -t 10 -b 5m -V 1'
-            if viz:
-                cmd += ' -X '+viz + ' '
-            cmd += ' -f '+ href
-            fs.write(cmd + " || : \n")
-            # results.append(Popen(cmd.split(" ")))
+            if not os.path.exists(path):
+                os.makedirs(path)
+            os.chdir(path)
         except Exception as e:
-            logging.info ("ERROR calling lors_download for scene "+ fname + " with error " + str(e))
-    for i in results:
-        i.wait()
+            logging.error("Could not set output directory: %s" % e)
+            pass
+        
+        for x in xnds:
+            try:
+                logging.info("[%d of %d] %s/%s" % (cnt, count, path, x["name"]))
+                href  = x["selfRef"]
+                name  = x["name"]                         
+                args = ['lors_download', '-t', '10', '-b', '5m', '-f', href]
+                if viz:
+                    args.append('-X')
+                    args.append(viz)
+                p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                out, err = p.communicate()
+                if verbose:
+                    print err
+                elif "ERROR" in err:
+                    print err
+                cnt += 1
+            except Exception as e:
+                logging.error("Failed lors_download for %s: %s " % (name, e))
+                
+        os.chdir(pwd)
 
-def _download(url,viz=False,ssl=False,flter='*'):
-    try:
-        logging.info("Url used is " + url)
-        if ssl :
-            r = requests.get(url,cert=('./dlt-client.pem','./dlt-client.pem'),verify=False)
-        else:
-            r = requests.get(url)
-        js = r.json()
-        if not js:
-            logging.info("Probably incorrect arguments - or something failed ")
-            logging.debug("Url used is " + url + " - Please ensure that unis supports all used features ")
-            return
-        logging.debug("Response from UNIS " + str(js))
-        # print ",".join(map(lambda x : x.get('name'),js))
-        runLors(js,viz)
-    except ValueError:
-        logging.info("Error : Download exnode metadata from Url " + url  + " failed")
-        return
+def get_exdict(rq, parent=None, path=None, rec=False, ssl=False, exdict={}):
+    cnt = 0
+    js  = []
+    if not path:
+        path = "."
+    url = rq.url(parent)
+    js = unis_get(url, ssl)
+    for j in js:
+        try:
+            if j["mode"] == "file":
+                logging.debug("Queue download: %s" % (path+"/"+j["name"]))
+                if path in exdict:
+                    exdict[path].append(j)
+                else:
+                    exdict[path] = [j]
+                cnt += 1
+            elif j["mode"] == "directory" and rec:
+                logging.debug("Recursing into: %s" % j["name"])
+                npath = path + "/" + j["name"]
+                c,ed = get_exdict(rq, j["selfRef"], npath, rec, ssl, exdict)
+                cnt += c
+            else:
+                logging.info("Skipping directory %s" % j["name"])
+        except Exception as e:
+            logging.error("Failed to process UNIS response: %s" % e)
+            sys.exit(1)
 
-def download(host,info,scenes=True,viz=False,reg=False,folder=False,ssl=False,flter=".*",verbose=False):
-    url = host + "/exnodes"
-    fieldStr = "&fields=selfRef,name&mode=file" + "&name=reg="+flter
-    if reg:
-        url += "?metadata.scene=reg=" + urllib.quote(info) + fieldStr
-    elif folder:
-        url += "?parent=recfind=" + info + fieldStr
-    elif scenes:
-        """ Process Scene list boolean last since it is always set to true by default """
-        url+= "?metadata.scene=" + info + fieldStr
-    _download(url,viz)
-
-def get_exnode_json(host,query) :
-    query += "&fields=name,mode,id,selfRef,parent";
-    url = host + "/exnodes?" + query
-    try :
-        logging.info("Download exnode metadata from Url " + url)
-        js = requests.get(url)
-        return js.json()
-    except Exception as e :
-        print e
-        return []
-
-def get_child_json(host,val,qstr='') :
-    """ Get the json of all items with this parent recurssively"""
-    if not val :
-        return []
-    js = get_exnode_json(host,"parent="+qstr+val)
-    par = []
-    ret = []
-    for i in js :
-        if i.get('mode') == "directory" :
-            par.append(i.get(parent_attr))
-        elif i.get('mode') == "file":
-            ret.append(i)
-    ret.extend(get_child_json(host,",".join(par)))
-    return ret
-
-def get_from_path(host,path) :
-    """ Takes full pathParentattr
-    Generate list of queries to actually get a file
-    if list of files are
-    """
-    arr = path.split("/")
-    parent = []
-    attr = 'name'
-    query = "parent=null="
-    query += "&"+attr+"="+arr[0]
-    parent = get_exnode_json(host,query)
-    js = parent
-    for i in arr[1:] :
-        if parent and i :
-            query = "parent=" + ",".join(map(lambda x : x.get(parent_attr),parent))
-            query += "&"+attr+"="+i
-            js = get_exnode_json(host,query)
-            parent = js
-    return js
-
-# json = get_from_path("http://dev.crest.iu.edu:8888","Landsat/LC8/008/038/2016")
-# json = get_from_path("http://dev.crest.iu.edu:8888","Landsat/LC8/008/")
-def runlors_dir(host,parent,flter,vizurl):
-    """ recurrsively runlors on file list and use filter """
-    """ FIXME This can blow the stack , need to make it non-recurssive"""
-    js = get_exnode_json(host,"parent="+parent)
-    lorsarr = []
-    for i in js :
-        if i.get('mode') == "file" and fnmatch.fnmatch(i.get('name'),flter) :
-            lorsarr.append(i)
-        elif i.get('mode') == "directory" :
-            runlors_dir(host,i.get('id'),flter,vizurl)
-    runLors(lorsarr,vizurl)
+    return (cnt,exdict)
 
 def main ():
-    global parent_attr
-    args = cmdparser.parseArgs()
-    if args.selfref :
-        parent_attr = 'selfRef'
-    info = args.sceneInfo
-    host = args.host
-    regex = args.regex
-    ssl = args.ssl
-    scenes = args.scenes
-    folder = args.folder
-    path = args.path
-    vizurl = args.visualize
-    typeStr = 'Scene list' if scenes else 'Regex' if regex else 'Folder Id' if folder else  "Unknown"
-    logging.info("Downloading Using info: "+  info +  " and tpye :  " + typeStr)
-    if path :
-        flter = args.filter if args.filter else "*"
-        path = info
-        """ Download using folder path  """
-        json = get_from_path(host,path)
-        lorsarr = []
-        for i in json :
-            if i.get('mode') == "file" and fnmatch.fnmatch(i.get('name'),flter) :
-                lorsarr.append(a)
-            elif i.get('mode') == "directory" :
-                """ Get all immediate children of dir and run _download on them """
-                runlors_dir(host,i.get('id'),flter,vizurl)
-            runLors(lorsarr,vizurl)
-    else :
-        """ Flter works like a regex in case of normal regex query (inconsistent) """
-        flter = args.filter if args.filter else ".*"
-        download(host,info,scenes,vizurl,regex,folder,ssl,flter)
-    fs.close()
-    cmd = "bash runlors.sh.tmp"
-    i = Popen(cmd.split(" "))
-    i.wait()
-    logging.info("You can delete runlors.sh.tmp - Leaving it for debuggin purpose")
+    args = parseArgs(desc="EODN-IDMS Download Tool",
+                     ptype=common.PARSER_TYPE_DOWNLOAD)
+    try:
+        rq = ExnodeRESTQuery(args)
+        c,ed = get_exdict(rq, None, None,
+                          args.recursive,
+                          args.ssl)
 
+        if not c:
+            logging.info("Found %d files" % c)
+        else:
+            logging.debug("Found %d files in %d directories" % (c, len(ed)))
+        
+        if (args.list):
+            print "total: %d" % c
+            for k,v in ed.iteritems():
+                print k+":"
+                for n in v:
+                    print "\t"+n["name"]
+        else:
+            download(c, ed, args.visualize, args.verbose)
+            
+    except Exception as e:
+        logging.error("%s" % e)
+        sys.exit(1)
+    
 if __name__ == "__main__":
     main()

@@ -1,28 +1,39 @@
 * dlt tools 
 
 ** Introduction 
-Basically contains 2 Clis 
-- eodn_listner  : Listen for new scenes from host using websocket and download when a new file is uploaded
-- eodn_download : Download the existing scenes specified in the list
+The packaged version of this project generates two tools:
+- eodn_listener  : Listen for and download new files using a subscription mechanism
+- eodn_download  : Download tool for existing files stored in EODN-IDMS
 
 
 ** Arguments 
-It contains the following arguments:
-- -s , --scenes  : comma separated list of scenes
-- -H , --host    : host to get scenes from Eg: http://dev.crest.iu.edu:8888/exnodes
-- -r , --regex   : Pass a regex to fetch by ~/exnodes?metadata.scene=reg=/<Argumnet>~
-		   Download everything that matches the regex
+The tools have set of common arguments:
+#+begin_SRC bash
+ -s , --scenes  : A comma-separated list of scenes (matches against `metadata.scene` field)
+ -r , --regex   : A regular expression that matches against scene names.
+ -f , --filter  : A filename filter regular expresion, allowing for matches by file extension, for example.
+#+end_SRC
 
-** Using path to download folders 
+** Specifying a path to download folders (eodn_download only)
 
-Currently folder like downloads with wildcards are only supported in the downloader and can be used in the following way , where -p indicates that it is a path and -F indicates the filter
+The above filters may be used in conjunction with the following directory options.  The download tool will create local folders relative to the EODN path specified (i.e., within your current working directory).
 
 #+begin_SRC bash
-eodn_download -p Landsat/LC8/006/040/2016/ -F "*.png"
+ -p , --path      : Specify an absolute path in the EODN-IDMS directory hierarchy from which to download files.
+ -R , --recursive : Recurse into subdirectories.
+ -l , --list      : Only list files, do not perform download operation
+#+end_SRC
 
-# Recurrsively download all the files under the folder (No way to download only the immediate files below the folder exist in this way)
-eodn_download -p Landsat/LC8/006/ -F "*.png"
+ - Example: download all PNG files within specified directory.
 
+#+begin_SRC bash
+eodn_download -p /Landsat/LC8/006/040/2016 -f ".png"
+#+end_SRC
+
+ - Example: Recursively download all JPG files within the specified folder that match the scene regex.
+
+#+begin_SRC bash
+eodn_download -p /Landsat/LC8/016 -R -f ".jpg" -r "LC8.*014.*"
 #+end_SRC
 
 

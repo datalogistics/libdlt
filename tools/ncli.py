@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """ A Cli app to browse UNIS , exnodes and Blipp """
 import os
 import sys
@@ -9,7 +11,6 @@ import json
 import logging
 import requests
 from subprocess import Popen
-import cmdparser
 import urllib
 from functools import partial
 from urlparse import urlparse
