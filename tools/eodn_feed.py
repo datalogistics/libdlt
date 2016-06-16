@@ -21,53 +21,49 @@ def signal_handler(signal, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 class Listener(object):
-    def __init__(self, rq, viz, verbose):
+    def __init__(self, rq, viz, verbose, vlist):
         self._rq  = rq
         self._viz = viz
         self._verbose = verbose
+        self._list = vlist
         
     def on_message(self, ws, message):
         href = None
         name = None
         try:
             js   = json.loads(message)
+            if not js["headers"]["action"] == "POST":
+                return
+            else:
+                js = js["data"]
             href = js["selfRef"]
             name = js["name"]
-            logging.info("Downloading file %s" % js["name"])
+            logging.info("Matching file %s [%d bytes]" % (js["name"], js["size"]))
         except Exception as e:
             logging.warn("Failed to decode eXnode: %s" % e)
             logging.debug(message)
             return
         
-        try:
-            args = ['lors_download', '-t', '10', '-b', '5m', '-f', href]
-            if self._viz:
-                args.append('-X')
-                args.append(self._viz)
-            p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            out, err = p.communicate()
-            if self._verbose:
-                print err
-            elif "ERROR" in err:
-                print err
-        except Exception as e:
-            logging.error("Failed lors_download for %s: %s " % (name, e))
+        if not self._list:
+            try:
+                args = ['lors_download', '-t', '10', '-b', '5m', '-f', href]
+                if self._viz:
+                    args.append('-X')
+                    args.append(self._viz)
+                p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                out, err = p.communicate()
+                if self._verbose:
+                    print err
+                elif "ERROR" in err:
+                    print err
+            except Exception as e:
+                logging.error("Failed lors_download for %s: %s " % (name, e))
             
     def on_error(self, ws, error):
         logging.warn("Websocket error - {exp}".format(exp = error))
     
-    def close_handler(self):
-        while not self.start():
-            time.sleep(10)
-            logging.info("Attempting to reconnect...")
-            
     def on_close(self, ws):
-        if SHUTDOWN:
-            return
-        
-        logging.warn("Remote host closed the connection")
-        logging.info("Attempting to reconnect...")
-        self.close_handler()
+        logging.warn("Remote connection lost")
         
     def on_open(self, ws):
         logging.info("Connected to %s" % self._rq.url())
@@ -81,6 +77,7 @@ class Listener(object):
                                     on_message = self.on_message,
                                     on_error = self.on_error,
                                     on_close = self.on_close)
+        self._ws = ws
         ws.on_open = self.on_open
         ws.run_forever()
         
@@ -88,8 +85,13 @@ def main ():
     args = parseArgs(desc="EODN-IDMS Subscription Tool",
                      ptype=common.PARSER_TYPE_PUBSUB)
     rq = ExnodePUBSUBQuery(args)
-    listener = Listener(rq, args.visualize, args.verbose)
-    listener.start()
+    listener = Listener(rq, args.visualize,
+                        args.verbose, args.list)
+
+    while True:
+        listener.start()
+        time.sleep(5)
+        logging.info("Attempting to reconnect...")
     
 if __name__ == "__main__":
     main()

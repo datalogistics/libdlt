@@ -111,6 +111,8 @@ def parseArgs(desc="EODN-IDMS File Acquisition", ptype=PARSER_TYPE_DOWNLOAD):
                         help='Filter scene names by regex (eXnode metadata)')
     parser.add_argument('-f', '--filter', type=str,
                         help='Filter file names using regex')
+    parser.add_argument('-l', '--list', action='store_true',
+                        help='List only, will not attempt to download')
     parser.add_argument('-X', '--visualize', type=str, nargs='?',
                         const="http://dlt.crest.iu.edu:42424",
                         help='Enable visualization (may specify viz URL)')
@@ -129,8 +131,6 @@ def parseArgs(desc="EODN-IDMS File Acquisition", ptype=PARSER_TYPE_DOWNLOAD):
                             help='Recursively get all subdirectory contents')
         parser.add_argument('-p', '--path', type=str,
                             help='eXnode path to download')
-        parser.add_argument('-l', '--list', action='store_true',
-                            help='List only, will not attempt to download')
     elif ptype == PARSER_TYPE_PUBSUB:
         parser.add_argument('-H', '--url', type=str,
                             default="ws://unis.crest.iu.edu:8890",
