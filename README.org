@@ -12,7 +12,7 @@ The tools have set of common arguments:
  -s , --scenes  : A comma-separated list of scenes (matches against `metadata.scene` field)
  -r , --regex   : A regular expression that matches against scene names.
  -f , --filter  : A filename filter regular expresion, allowing for matches by file extension, for example.
- -l , --list      : Only list files, do not perform download operation
+ -l , --list    : Only list files, do not perform download operation
 #+end_SRC
 
 ** Specifying a path to download folders (eodn_download only)
