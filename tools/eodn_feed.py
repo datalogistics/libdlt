@@ -7,8 +7,9 @@ import json
 import subprocess
 import logging
 import signal
-import common
-from common import ExnodePUBSUBQuery, parseArgs
+
+import libdlt.util.common as common
+from libdlt.util.common import ExnodePUBSUBQuery, parseArgs
 
 SHUTDOWN = False
 
@@ -53,9 +54,9 @@ class Listener(object):
                 p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 out, err = p.communicate()
                 if self._verbose:
-                    print err
+                    print (err)
                 elif "ERROR" in err:
-                    print err
+                    print (err)
             except Exception as e:
                 logging.error("Failed lors_download for %s: %s " % (name, e))
             

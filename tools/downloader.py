@@ -7,10 +7,11 @@ import argparse
 import signal
 import json
 import logging
-import common
 import subprocess
 from pprint import pprint
-from common import ExnodeRESTQuery,parseArgs,unis_get
+
+import libdlt.util.common as common
+from libdlt.util.common import ExnodeRESTQuery,parseArgs,unis_get
 
 def signal_handler(signal, frame):
     print('Exiting the program')
@@ -20,7 +21,7 @@ signal.signal(signal.SIGINT, signal_handler)
 
 def download(count, exdict, viz=False, verbose=False):
     cnt = 1
-    for path,xnds in exdict.iteritems():
+    for path,xnds in exdict.items():
         pwd = os.getcwd()
         try:
             if not os.path.exists(path):
@@ -42,9 +43,9 @@ def download(count, exdict, viz=False, verbose=False):
                 p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 out, err = p.communicate()
                 if verbose:
-                    print err
+                    print (err)
                 elif "ERROR" in err:
-                    print err
+                    print (err)
                 cnt += 1
             except Exception as e:
                 logging.error("Failed lors_download for %s: %s " % (name, e))
@@ -95,11 +96,11 @@ def main ():
             logging.debug("Found %d files in %d directories" % (c, len(ed)))
         
         if (args.list):
-            print "total: %d" % c
-            for k,v in ed.iteritems():
-                print k+":"
+            print ("total: %d" % c)
+            for k,v in ed.items():
+                print (k+":")
                 for n in v:
-                    print "\t"+n["name"]
+                    print ("\t"+n["name"])
         else:
             download(c, ed, args.visualize, args.verbose)
             

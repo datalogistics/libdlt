@@ -80,7 +80,7 @@ class ExnodePUBSUBQuery:
         return query
 
     def __init__(self, args):
-        self.ctype = "exnodes"
+        self.__ctype = "exnodes"
         # selection criteria
         self.scenes = args.scenes
         self.regex = args.regex

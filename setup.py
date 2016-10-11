@@ -1,71 +1,40 @@
 import os
 from setuptools import setup
 
-# Utility function to read the README file.
-# Used for the long_description.  It's nice, because now 1) we have a top level
-# README file and 2) it's easier to type in the README file than to put a raw
-# string in below ...
-def read(fname):
-    print os.path.join(os.path.dirname(__file__), fname)
-    return open(os.path.join(os.path.dirname(__file__), fname)).read()
-
 setup(
-    name = "dlt-tools",
+    name = "libdlt",
     version = "2.1.dev",
-    author = "Prakash",
-    author_email = "prakraja@umail.iu.edu",
-    description = ("DLT tools - basically a landsat listener and downloader"),
+    author = "DLT CREST Team",
+    author_email = "dlt@crest.iu.edu",
+    description = ("libdlt: DLT development modules and tools"),
     license = "BSD",
-    keywords = "dlt tools",
-    url = "https://github.com/datalogistics/dlt-misc",
-    packages=['tools'],
-    package_data={'tools' : ['*']},
-    long_description=''' 
-    Table of Contents
-    _________________
-
-    1 dlt tools
-    .. 1.1 Introduction
-    .. 1.2 Arguments
-
-
-    1 dlt tools
-    ===========
-
-    1.1 Introduction
-    ~~~~~~~~~~~~~~~~
-
-    Basically contains 2 Clis
-    - eodn_listner : Listen for new scenes from host using websocket and
-    download when a new file is uploaded
-    - eodn_download : Download the existing scenes specified in the list
-
-
-    1.2 Arguments
-    ~~~~~~~~~~~~~
-
-    It contains the following arguments:
-    - -s , --scenes : comma separated list of scenes
-    - -H , --host : host to get scenes from Eg:
-    [http://dev.crest.iu.edu:8888/exnodes]
-
-    ''',
+    keywords = "DLT libdlt tools",
+    url = "https://github.com/datalogistics/libdlt",
+    packages=['libdlt', 'tools'],
+    package_data={'tools' : ['*.py']},
     include_package_data = True,
     install_requires=[
+        "rados",
+        "unisrt",
         "websocket-client>=0.34",
         "requests",
         "six>=1.8.0"
     ],
+    dependency_links=[
+        "git+https://github.com/periscope-ps/unisrt.git/@develop#egg=unisrt",
+        "git+https://github.com/mihu/python3-rados.git#egg=rados",
+    ],
     classifiers=[
         "Development Status :: 3 - Alpha",
-        "Topic :: Utilities",
+        "Topic :: Libraries",
         "License :: OSI Approved :: BSD License",
         ],
     entry_points = {
         'console_scripts': [
             'eodn_feed = tools.eodn_feed:main',
             'eodn_download = tools.downloader:main',
-            'dlt_cli = tools.ncli:main'
+            'dlt_cli = tools.ncli:main',
+            'dlt_xfer = tools.dlt_xfer:main'
         ]
     },
     options = {'bdist_rpm':{'post_install' : 'scripts/rpm_postinstall.sh'}},
