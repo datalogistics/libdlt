@@ -60,10 +60,10 @@ readline.set_completer(completer)
 readline.parse_and_bind("tab: complete")
 ## Utils
 def display(s) :
-    print str(s)
+    print (str(s))
 
 def display_error(str) :
-    print str
+    print (str)
 
 ### Request utils
 def get_url(obj):
@@ -90,7 +90,7 @@ def get_query_params (arr) :
     s = ""
     showHelp = False
     global opmap
-    print arr
+    print (arr)
     while len(arr) >= 2 :
         if arr[0] == '?' :
             showHelp = True
@@ -140,7 +140,7 @@ def init_availabe_commands() :
             try :
                 j = get(get_url(ob),ob)
             except Exception as e:
-                print e
+                print (e)
             else :
                 global_available_cd = processUnisTop(j)
         elif length > 2 :
@@ -203,7 +203,7 @@ def show (arr):
             try :
                 j = get(u,ob)
             except Exception as e :
-                print e
+                print (e)
             else :
                 ob = global_last_json or []
                 mp = {}
@@ -270,12 +270,12 @@ def cdp_cmd (arr) :
             try :
                 j = get(u,ob)
             except Exception as e :
-                print e
+                print (e)
             else :
                 try :
                     parr = map((lambda x : x['id']),j)
                 except Exception as e:
-                    print e
+                    print (e)
                 else :
                     global_cdp[0] = 'parent'
                     global_cdp[1] = '='

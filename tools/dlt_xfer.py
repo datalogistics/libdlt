@@ -16,22 +16,22 @@ from unis.models import Exnode
 
 UNIS_URL = "http://localhost:8888"
 DEPOTS = {
-    "ceph://stark": {
-        "clustername": 'ceph',
-        "config": "/etc/ceph/ceph.conf",
-        "pool": "test",
-        "crush_map": None
-            },
-    "ceph://um-mon01.osris.org": {
-        "clustername": 'osiris',
-        "config": "/etc/ceph/osiris.conf",
-        "pool": "dlt",
-        "crush_map": None
-            },
-    #    "ibp://ibp2.crest.iu.edu:6714": {
-    #        "max_alloc_lifetime": 2592000
-    #    }
+#    "ceph://stark": {
+#        "clustername": 'ceph',
+#        "config": "/etc/ceph/ceph.conf",
+#        "pool": "test",
+#        "crush_map": None
+#            },
+#    "ceph://um-mon01.osris.org": {
+#        "clustername": 'osiris',
+#        "config": "/etc/ceph/osiris.conf",
+#        "pool": "dlt",
+#        "crush_map": None
+#            },
+    "ibp://ibp2.crest.iu.edu:6714": {
+        "max_alloc_lifetime": 2592000
     }
+}
 
 def read_action(ext):
     alloc = factory.buildAllocation(ext)
@@ -114,6 +114,8 @@ def main():
                         help='Files to transfer')
     parser.add_argument('-u', '--upload', action='store_true',
                         help='Perform file upload (default is download)')
+    parser.add_argument('-H', '--host', type=str, default=UNIS_URL,
+                        help='UNIS instance for uploading eXnode metadata')
     parser.add_argument('-b', '--bs', type=str, default='5m',
                         help='Block size')
 
@@ -121,7 +123,7 @@ def main():
     xfer = DLTUpload if args.upload else DLTDownload
     bs = util.human2bytes(args.bs)
 
-    rt = Runtime(UNIS_URL, defer_update=True)
+    rt = Runtime(args.host, defer_update=True)
     
     for f in args.files:
         diff, res = xfer(f, bs, rt)

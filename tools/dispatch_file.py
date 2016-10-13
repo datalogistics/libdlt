@@ -24,12 +24,12 @@ def upload_to_eodn(xnd_file, file):
             if results == 0:
                 break
         except Exception as e:
-            print "ERROR calling lors_upload: %s" % e
-            
+            print ("ERROR calling lors_upload: {}".format(e))
+
     return results
 
 def unis_import(xndfile, scene_id, exdir):
-    print 'Importing exnode to UNIS'
+    print ("Importing exnode to UNIS")
     dispatch = UnisDispatch.Dispatcher(duration=1)
     root = dispatch.CreateRemoteDirectory(exdir, None)
     #extended_dir = UnisDispatch.parse_filename(xndfile.split('/')[-1])
@@ -53,7 +53,7 @@ def main():
 
     unis_import(xndfile, args.scene, args.dir)
 
-    print "Done!"
+    print ("Done!")
 
 if __name__ == '__main__':
     main()
