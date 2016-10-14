@@ -4,7 +4,6 @@ import argparse
 from pprint import pprint
 
 import libdlt
-from unis.runtime import Runtime
 
 UNIS_URL = "http://localhost:8888"
 DEPOTS = {
@@ -38,9 +37,8 @@ def main():
 
     args = parser.parse_args()
     bs = args.bs
-    rt = Runtime(args.host, defer_update=True)
     
-    sess = libdlt.Session(runtime=rt, blocksize=bs, depots=DEPOTS)
+    sess = libdlt.Session(args.host, bs=bs, depots=DEPOTS)
     xfer = sess.upload if args.upload else sess.download
         
     for f in args.files:

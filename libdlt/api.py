@@ -38,4 +38,4 @@ def _validate_href(href, path=True):
     if not len(path) == 3:
         raise ValueError("Invalid path in download, expected /{0}/{1} - got {2}".format("{collection}", "{id}", url.path))
     
-    return (unis=unis_url, collection=path[1], uid=path[2])
+    return (unis_url, path[1], path[2])
