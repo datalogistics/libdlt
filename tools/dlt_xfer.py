@@ -8,21 +8,21 @@ from unis.runtime import Runtime
 
 UNIS_URL = "http://localhost:8888"
 DEPOTS = {
-    "ceph://stark": {
-        "clustername": 'ceph',
-        "config": "/etc/ceph/ceph.conf",
-        "pool": "test",
-        "crush_map": None
-            },
-    "ceph://um-mon01.osris.org": {
-        "clustername": 'osiris',
-        "config": "/etc/ceph/osiris.conf",
-        "pool": "dlt",
-        "crush_map": None
-    },
-#    "ibp://ibp2.crest.iu.edu:6714": {
-#        "max_alloc_lifetime": 2592000
-#    }
+#    "ceph://stark": {
+#        "clustername": 'ceph',
+#        "config": "/etc/ceph/ceph.conf",
+#        "pool": "test",
+#        "crush_map": None
+#            },
+#    "ceph://um-mon01.osris.org": {
+#        "clustername": 'osiris',
+#        "config": "/etc/ceph/osiris.conf",
+#        "pool": "dlt",
+#        "crush_map": None
+#    },
+    "ibp://ibp2.crest.iu.edu:6714": {
+        "duration": 2592000
+    }
 }
 
 def main():

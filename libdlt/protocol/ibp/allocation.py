@@ -9,105 +9,46 @@ Allocation is a formal definition of the
 allocation structure.  It contains keys
 that can be used to access data on an IBP
 depot.
-
 '''
 
-import datetime
 import logging
+from datetime import datetime
 
-IBP_EXTENT_URI="http://unis.crest.iu.edu/schema/exnode/ext/1/ibp#"
+from unis.models import Lifetime, schemaLoader
+from libdlt.depot import Depot
 
-class Allocation(object):
-    def __init__(self, alloc = None):
-        self._log = logging.getLogger()
-        self._raw = None
-        self._read = None
-        self._write = None
-        self._manage = None
+IBP_EXTENT_URI = "http://unis.crest.iu.edu/schema/exnode/ext/1/ibp#"
+
+IBPExtent = schemaLoader.get_class(IBP_EXTENT_URI)
+
+class Allocation(IBPExtent):
+    def initialize(self, data={}):
+        super(Allocation, self).initialize(data)
+        self._log       = logging.getLogger()
+        self.timestamp  = 0
+        self.depot      = Depot(data["location"]) if "location" in data else None
+        self.lifetime   = Lifetime()
         
-        self.allocationType = "ibp"
-        self.location    = "ibp://"
-        self.Id          = ""
-        self.realSize    = 0
-        self.offset      = 0
-        self.depotSize   = 0
-        self.depotOffset = 0
-        self.start       = datetime.datetime.utcnow()
-        self.end         = datetime.datetime.utcnow()
-        self.timestamp   = 0
-        self.host        = ""
-        self.port        = 6714
-        self.exnode      = ""
+    def getStartTime(self):
+        return datetime.strptime(self.lifetimes.start, "%Y-%m-%d %H:%M:%S")
+
+    def getEndTime(self):
+        return datetime.strptime(self.lifetimes.start, "%Y-%m-%d %H:%M:%S")
+
+    def setStartTime(self, dt):
+        self.lifetimes.start = dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    def setEndTime(self, dt):
+        self.lifetimes.end = dt.strftime("%Y-%m-%d %H:%M:%S")
         
-        if alloc:
-            self.Deserialize(alloc)            
-            
-            
-    def getAddress(self):
-        return "{host}:{port}".format(host = self.host, port = self.port)
-
-    def Clone(self):
-        tmpAlloc = Allocation()
-        tmpAlloc.realSize    = self.realSize
-        tmpAlloc.offset      = self.offset
-        tmpAlloc.depotSize   = self.depotSize
-        tmpAlloc.depotOffset = self.depotOffset
-        tmpAlloc.start       = self.start
-        tmpAlloc.end         = self.end
-        tmpAlloc.exnode      = self.exnode
-        
-        return tmpAlloc
-    
-    def Deserialize(self, alloc):
-        try:
-            self.Id          = alloc["id"]
-            self.location    = alloc["mapping"]["read"]
-            self.timestamp   = alloc["ts"]
-            self.realSize    = alloc["size"]
-            self.offset      = alloc["offset"]
-            self.depotSize   = alloc.get("alloc_length", self.realSize)
-            self.depotOffset = alloc.get("alloc_offset", self.offset)
-            self.start       = datetime.datetime.strptime(alloc["lifetimes"][0]["start"], "%Y-%m-%d %H:%M:%S")
-            self.end         = datetime.datetime.strptime(alloc["lifetimes"][0]["end"], "%Y-%m-%d %H:%M:%S")
-            self.exnode      = alloc["parent"]
-            self.SetReadCapability(alloc["mapping"]["read"])
-            self.SetWriteCapability(alloc["mapping"]["write"])
-            self.SetManageCapability(alloc["mapping"]["manage"])
-            self._raw = alloc
-        except Exception as exp:
-            self._log.warn("{func:>20}| Unable to decode Allocation - {exp}".format(func = "Allocation", exp = exp))            
-    
-    def Serialize(self):
-        if not self._raw:
-            self._raw = {}
-            self._raw["lifetimes"] = []
-            self._raw["lifetimes"].append({})
-            self._raw["mapping"] = {}
-
-        self._raw["id"]           = self.Id
-        self._raw["location"] = self.location
-        self._raw["ts"]           = self.timestamp
-        self._raw["size"]         = self.realSize
-        self._raw["offset"]       = self.offset
-        self._raw["alloc_length"] = self.depotSize
-        self._raw["alloc_offset"] = self.depotOffset
-        self._raw["parent"]       = self.exnode
-        self._raw["lifetimes"][0]["start"] = self.start.strftime("%Y-%m-%d %H:%M:%S")
-        self._raw["lifetimes"][0]["end"]   = self.end.strftime("%Y-%m-%d %H:%M:%S")
-        self._raw["mapping"]["read"] = str(self.GetReadCapability())
-        self._raw["mapping"]["write"] = str(self.GetWriteCapability())
-        self._raw["mapping"]["manage"] = str(self.GetManageCapability())
-
-        return self._raw
-
     def GetReadCapability(self):
-        return self._read
+        return self.mapping.read
 
     def GetWriteCapability(self):
-        return self._write
+        return self.mapping.write
 
     def GetManageCapability(self):
-        return self._manage
+        return self.mapping.manage
         
     def SetReadCapability(self, read):
         try:
@@ -115,40 +56,15 @@ class Allocation(object):
         except ValueError as exp:
             self._log.warn("{func:>20}| Unable to create capability - {exp}".format(func = "SetReadCapability", exp = exp))
             return False
+        self.mapping.read = str(tmpCap)
         
-        if self.host:
-            if tmpCap.host != self.host:
-                self._log.warn("{func:>20}| Host Mismatch, read and write hosts must be the same".format(func = "SetReadCapability"))
-                return False
-            elif tmpCap.port != self.port:
-                self._log.warn("{func:>20}| Host Mismatch, read and write ports must be the same".format(func = "SetReadCapability"))
-                return False                
-        else:
-            self.host = tmpCap.host
-            self.port = tmpCap.port
-
-        self._read = tmpCap
-        
-
     def SetWriteCapability(self, write):
         try:
             tmpCap = Capability(write)
         except ValueError as exp:
             self._log.warn("{func:>20}| Unable to create capability - {exp}".format(func = "SetWriteCapability", exp = exp))
             return False
-        
-        if self.host:
-            if self.host != tmpCap.host:
-                self._log.warn("{func:>20}| Host Mismatch, read and write hosts must be the same".format(func = "SetWriteCapability"))
-                return False
-            elif self.port != tmpCap.port:
-                self._log.warn("{func:>20}| Host Mismatch, read and write ports must be the same".format(func = "SetWriteCapability"))
-                return False
-        else:
-            self.host = tmpCap.host
-            self.port = tmpCap.port
-
-        self._write = tmpCap
+        self.mapping.write = str(tmpCap)
 
     def SetManageCapability(self, manage):
         try:
@@ -156,33 +72,17 @@ class Allocation(object):
         except ValueError as exp:
             self._log.warn("{func:>20}| Unable to create capability - {exp}".format(func = "SetManageCapability", exp = exp))
             return False
-        
-        if self.host:
-            if self.host != tmpCap.host:
-                self._log.warn("{func:>20}| Host Mismatch, read and manage hosts must be the same".format(func = "SetManageCapability"))
-                return False
-            elif self.port != tmpCap.port:
-                self._log.warn("{func:>20}| Host Mismatch, read and manage ports must be the same".format(func = "SetManageCapability"))
-                return False
-        else:
-            self.host = tmpCap.host
-            self.port = tmpCap.port
-        
-        self._manage = tmpCap
-        
-    
+        self.mapping.manage = str(tmpCap)
 
 class Capability(object):
     def __init__(self, cap_string):
         try:
-            self._cap   = cap_string
-            tmpSplit    = cap_string.split("/")
-            tmpAddress  = tmpSplit[2].split(":")
-            self.host   = tmpAddress[0]
-            self.port   = tmpAddress[1]
-            self.key    = tmpSplit[3]
-            self.wrmKey = tmpSplit[4]
-            self.code   = tmpSplit[5]
+            self._cap       = cap_string
+            tmpSplit        = cap_string.split("/")
+            tmpAddress      = tmpSplit[2].split(":")
+            self.key        = tmpSplit[3]
+            self.wrmKey     = tmpSplit[4]
+            self.code       = tmpSplit[5]
         except Exception as exp:
             raise ValueError('Malformed capability string')
 

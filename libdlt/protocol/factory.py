@@ -1,6 +1,5 @@
 import json
 import logging
-from uritools import urisplit
 
 import libdlt.protocol.ibp.factory as ibp
 import libdlt.protocol.ceph.factory as ceph
@@ -34,5 +33,4 @@ def buildAllocation(json):
     return SCHEMA_MAP[schema].buildAllocation(json)
 
 def makeAllocation(offset, data, depot, **kwds):
-    o = urisplit(depot)
-    return PROTOCOL_MAP[o.scheme].makeAllocation(offset, data, depot, **kwds)
+    return PROTOCOL_MAP[depot.scheme].makeAllocation(offset, data, depot, **kwds)

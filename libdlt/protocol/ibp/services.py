@@ -14,10 +14,8 @@ import argparse
 import socket
 import logging
 
-import settings
-import libdlt.protocol.ibp.flags
-import libdlt.protocol.ibp.allocation
-
+from .settings import DEFAULT_PASSWORD, DEFAULT_TIMEOUT, DEFAULT_DURATION
+from libdlt.protocol.ibp import flags, allocation
 from libdlt.protocol.ibp.flags import print_error
 
 class ProtocolService(object):
@@ -26,7 +24,7 @@ class ProtocolService(object):
 
     
     '''
-    @input: address - A dict containing a host:port pair for the depot location
+    @input: depot - A Depot object
     @optional:
             password - the password to access the depot
             timeout  - the length of time in seconds to wait for a response
@@ -38,13 +36,13 @@ class ProtocolService(object):
              non-volatile - the amount of data that cannot be removed
              max-duration - the maximum time in seconds data can be hosted on the depot without refreshing
     '''
-    def GetStatus(self, address, **kwargs):
+    def GetStatus(self, depot, **kwargs):
     # Query the status of a Depot.
     
     # Generate request with the following form
     # IBPv031[0] IBP_ST_INQ[2] pwd timeout
-        pwd = settings.DEFAULT_PASSWORD
-        timeout = settings.DEFAULT_TIMEOUT
+        pwd = DEFAULT_PASSWORD
+        timeout = DEFAULT_TIMEOUT
         tmpCommand = ""
         
         if "password" in kwargs:
@@ -54,7 +52,7 @@ class ProtocolService(object):
         
         try:
             tmpCommand = "{0} {1} {2} {3} {4}\n".format(flags.IBPv031, flags.IBP_STATUS, flags.IBP_ST_INQ, pwd, timeout)
-            result = self._dispatch_command(address["host"], address["port"], tmpCommand)
+            result = self._dispatch_command(depot.host, depot.port, tmpCommand)
             if not result:
                 return None
             result = result.split(" ")
@@ -84,9 +82,9 @@ class ProtocolService(object):
     def Manage(self, alloc, **kwargs):
         cap_type    = 0
         reliability = flags.IBP_HARD
-        timeout     = settings.DEFAULT_TIMEOUT
-        max_size    = settings.DEFAULT_MAXSIZE
-        duration    = settings.DEFAULT_DURATION
+        timeout     = DEFAULT_TIMEOUT
+        max_size    = DEFAULT_MAXSIZE
+        duration    = DEFAULT_DURATION
         tmpCommand  = ""
         mode        = flags.IBP_CHANGE
 
@@ -123,11 +121,11 @@ class ProtocolService(object):
                 return None
             result = result.split(" ")
         except Exception as exp:
-            self._log.warn("IBPProtocol.Manage [{alloc}]: Could not connect to {host}:{port} - {err}".format(alloc = alloc.Id, err = exp, host = alloc.host, port = alloc.port))
+            self._log.warn("IBPProtocol.Manage [{alloc}]: Could not connect to {host}:{port} - {err}".format(alloc = alloc.id, err = exp, host = alloc.host, port = alloc.port))
             return None
 
         if result[0].startswith("-"):
-            self._log.warn("IBPProtocol.Manage [{alloc}]: Failed to manage allocation - {err}".format(alloc = alloc.Id, err = print_error(result[0])))
+            self._log.warn("IBPProtocol.Manage [{alloc}]: Failed to manage allocation - {err}".format(alloc = alloc.id, err = print_error(result[0])))
             return None
         else:
             return result
@@ -150,7 +148,7 @@ class ProtocolService(object):
    
     '''
     @input: 
-           depot - The address of the depot as a dict {host: host, port: port}
+           depot - A Depot object
            size  - The size of the desired allocation
     @optional:
            reliability - One of either IBP_HARD or IBP_SOFT, when hard, allocations will not expire unless
@@ -161,13 +159,13 @@ class ProtocolService(object):
     @output:
            An Allocation object
     '''
-    def Allocate(self, depot, size, **kwargs):
-    # Generate destination Allocation and Capabilities using the form below
-    # IBPv031[0] IBP_ALLOCATE[1] reliability cap_type duration size timeout
+    def Allocate(self, depot, offset, size, **kwargs):
+        # Generate destination Allocation and Capabilities using the form below
+        # IBPv031[0] IBP_ALLOCATE[1] reliability cap_type duration size timeout
         reliability = flags.IBP_HARD
         cap_type    = flags.IBP_BYTEARRAY
-        timeout     = settings.DEFAULT_TIMEOUT
-        duration    = settings.DEFAULT_DURATION
+        timeout     = DEFAULT_TIMEOUT
+        duration    = DEFAULT_DURATION
         tmpCommand  = ""
 
         if "reliability" in kwargs:
@@ -181,11 +179,13 @@ class ProtocolService(object):
             
         try:
             tmpCommand = "{0} {1} {2} {3} {4} {5} {6} \n".format(flags.IBPv031, flags.IBP_ALLOCATE, reliability, cap_type, duration, size, timeout)
-            result = self._dispatch_command(depot["host"], depot["port"], tmpCommand)
+            result = self._dispatch_command(depot.host, depot.port, tmpCommand)
+            if not result:
+                return None
             result = result.split(" ")[1:]
 
         except Exception as exp:
-            self._log.warn("IBPProtocol.Allocate: Could not connect to {host}:{port} - {err}".format(err = exp, **depot))
+            self._log.warn("IBPProtocol.Allocate: Could not connect to {d} - {err}".format(err = exp, d = depot))
             return None
 
         if result[0].startswith("-"):
@@ -196,7 +196,12 @@ class ProtocolService(object):
         alloc.SetReadCapability(result[0])
         alloc.SetWriteCapability(result[1])
         alloc.SetManageCapability(result[2])
-        alloc.depotSize = size
+        alloc.depot = depot
+        alloc.offset = offset
+        alloc.size = size
+        alloc.alloc_offset = offset
+        alloc.alloc_length = size
+        del alloc.function
         return alloc
     
     
@@ -239,8 +244,10 @@ class ProtocolService(object):
            The duration of the allocation
     '''
     def Store(self, alloc, data, size, **kwargs):
-        timeout  = settings.DEFAULT_TIMEOUT
-        duration = settings.DEFAULT_DURATION
+        assert alloc.depot
+        depot = alloc.depot
+        timeout  = DEFAULT_TIMEOUT
+        duration = DEFAULT_DURATION
         tmpCommand  = ""
 
         if "timeout" in kwargs:
@@ -252,20 +259,20 @@ class ProtocolService(object):
         
         try:
             tmpCommand = "{0} {1} {2} {3} {4} {5}\n".format(flags.IBPv031, flags.IBP_STORE, cap.key, cap.wrmKey, size, timeout)
-            result = self._dispatch_data(alloc.host, alloc.port, tmpCommand, data)
+            result = self._dispatch_data(depot.host, depot.port, tmpCommand, data)
             if not result:
                 return None
             result = result.split(" ")
         except Exception as exp:
-            self._log.warn("IBPProtocol.Store [{alloc}]: Could not connect to {host}:{port} - {err}".format(alloc = alloc.Id, err = exp, host = alloc.host, port = alloc.port))
+            self._log.warn("IBPProtocol.Store [{alloc}]: Could not connect to {depot} - {err}".format(alloc = alloc.id, err = exp, depot=depot))
             return None
             
         if result[0].startswith("-"):
-            self._log.warn("IBPProtocol.Store [{alloc}]: Failed to store resource - {err}".format(alloc = alloc.Id, err = print_error(result[0])))
+            self._log.warn("IBPProtocol.Store [{alloc}]: Failed to store resource - {err}".format(alloc = alloc.id, err = print_error(result[0])))
             return None
         else:
-            alloc.depotSize = size
-            alloc.depotOffset = 0
+            alloc.size = size
+            alloc.offset = 0
             return duration
 
 
@@ -282,8 +289,8 @@ class ProtocolService(object):
     '''
     def Send(self, source, destination, **kwargs):
     # Move an allocation from one {source} Depot to one {destination} depot
-        timeout     = settings.DEFAULT_TIMEOUT
-        duration    = settings.DEFAULT_DURATION
+        timeout     = DEFAULT_TIMEOUT
+        duration    = DEFAULT_DURATION
         tmpCommand  = ""
         offset      = 0
 
@@ -314,11 +321,11 @@ class ProtocolService(object):
                 return None
             result = result.split(" ")
         except Exception as exp:
-            self._log.warn("IBPProtocol.Send [{alloc}]: Could not connect to {host1}:{port1} - {e}".format(alloc = alloc.Id, host1 = source.host, port1 = source.port, e = exp))
+            self._log.warn("IBPProtocol.Send [{alloc}]: Could not connect to {host1}:{port1} - {e}".format(alloc = alloc.id, host1 = source.host, port1 = source.port, e = exp))
             return None
 
         if result[0].startswith("-"):
-            self._log.warn("IBPProtocol.Send [{alloc}]: Failed to move allocation - {err}".format(alloc = alloc.Id, err = print_error(result[0])))
+            self._log.warn("IBPProtocol.Send [{alloc}]: Failed to move allocation - {err}".format(alloc = alloc.id, err = print_error(result[0])))
             return None
         else:
             return duration
@@ -334,7 +341,7 @@ class ProtocolService(object):
            The data stored in the allocation
     '''
     def Load(self, alloc, **kwargs):
-        timeout = settings.DEFAULT_TIMEOUT
+        timeout = DEFAULT_TIMEOUT
         tmpCommand  = ""
 
         if "timeout" in kwargs:
@@ -350,25 +357,28 @@ class ProtocolService(object):
                                                                                                     offset  = alloc.depotOffset,
                                                                                                     length  = alloc.depotSize,
                                                                                                     timeout = timeout)
-            result = self._recieve_data(alloc.host, alloc.port, tmpCommand, alloc.depotSize)
+            result = self._receive_data(alloc.host, alloc.port, tmpCommand, alloc.depotSize)
             if not result:
                 return None
         except Exception as exp:
-            self._log.warn("IBPProtocol.Load [{alloc}]: Could not connect to {host}:{port} - {err}".format(alloc = alloc.Id, err = exp, host = alloc.host, port = alloc.port))
+            self._log.warn("IBPProtocol.Load [{alloc}]: Could not connect to {host}:{port} - {err}".format(alloc = alloc.id, err = exp, host = alloc.host, port = alloc.port))
             return None
             
         if result["headers"].startswith("-"):
-            self._log.warn("IBPProtocol.Load [{alloc}]: Failed to store resource - {err}".format(alloc = alloc.Id, err = print_error(result[0])))
+            self._log.warn("IBPProtocol.Load [{alloc}]: Failed to store resource - {err}".format(alloc = alloc.id, err = print_error(result[0])))
             return None
         else:
             return result["data"]
 
 
-    def _recieve_data(self, host, port, command, size):
+    def _receive_data(self, host, port, command, size):
         port = int(port)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(10)
         sock.connect((host, port))
+
+        if isinstance(command, str):
+            command = command.encode()
         
         try:
             sock.send(command)
@@ -384,7 +394,10 @@ class ProtocolService(object):
             return None
         finally:
             sock.close()
-        
+
+        if isinstance(header, bytes):
+            header = header.decode()
+                        
         return { "headers": header, "data": data }
 
 
@@ -394,9 +407,14 @@ class ProtocolService(object):
         sock.settimeout(10)
         sock.connect((host, port))
 
+        if isinstance(command, str):
+            command = command.encode()
+        
         try:
             sock.send(command)
             response = sock.recv(1024)
+            if isinstance(response, bytes):
+                response = response.decode()
             if not response.startswith("-"):
                 sock.send(data)
                 response = sock.recv(1024)
@@ -404,22 +422,28 @@ class ProtocolService(object):
             self._log.warn("Socket Timeout - {0}".format(e))
             self._log.warn("--Attempted to execute: {0}".format(command))
             return None
-        except e:
-            self._log.warn("Socket error - {0}".format(3))
-            self._log.warn("--Attempted to execut: {0}".format(command))
+        except Exception as e:
+            self._log.warn("Socket error - {0}".format(e))
+            self._log.warn("--Attempted to execute: {0}".format(command))
             return None
         finally:
             sock.close()
-                
+
+        if isinstance(response, bytes):
+            response = response.decode()
+            
         return response
         
 
     def _dispatch_command(self, host, port, command):
-    # Create socket and configure with host and port
+        # Create socket and configure with host and port
         port = int(port)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(10)
         sock.connect((host, port))
+
+        if isinstance(command, str):
+            command = command.encode()
         
         try:
             sock.send(command)
@@ -428,13 +452,16 @@ class ProtocolService(object):
             self._log.warn("Socket Timeout - {0}".format(e))
             self._log.warn("--Attempted to execute: {0}".format(command))
             return None
-        except e:
-            self._log.warn("Socket error - {0}".format(3))
-            self._log.warn("--Attempted to execut: {0}".format(command))
+        except Exception as e:
+            self._log.warn("Socket error - {0}".format(e))
+            self._log.warn("--Attempted to execute: {0}".format(command))
             return None
         finally:
             sock.close()
-        
+
+        if isinstance(response, bytes):
+            response = response.decode()
+            
         return response
 
 

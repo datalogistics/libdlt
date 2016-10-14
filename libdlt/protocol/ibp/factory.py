@@ -30,9 +30,11 @@ def buildAllocation(json):
     return tmpAdapter
 
 def makeAllocation(offset, data, depot, **kwds):
-    alloc = Allocation()
+    ps = services.ProtocolService()
+    alloc = ps.Allocate(depot, offset, len(data), **kwds)
+    # XXX: write/send first
     return IBPAdaptor(alloc)
-
+    
 class IBPAdaptor(object):
     def __init__(self, alloc):
         self._log = logging.getLogger()
@@ -40,13 +42,13 @@ class IBPAdaptor(object):
         self._allocation = alloc
     
     def GetMetadata(self):
-        return Extent(self._allocation.Serialize())
+        return self._allocation
 
+    def Read(self, **kwargs):
+        pass
+    
     def Check(self, **kwargs):
-        host = self._allocation.host
-        port = self._allocation.port
-        
-        depot_status = self._service.GetStatus({"host": host, "port": port})
+        depot_status = self._service.GetStatus(self._allocation.depot)
         
         if not depot_status:
             raise AllocationException("could not contact Depot")
@@ -68,7 +70,7 @@ class IBPAdaptor(object):
         offset = kwargs.get("offset", 0)
         size   = kwargs.get("size", self._allocation.depotSize - offset)
         
-        dest_alloc = buildAllocation(self._allocation.Serialize())
+        dest_alloc = buildAllocation(self._allocation.to_JSON())
 
         response = self._service.Allocate(destination, size, **kwargs)
         if not response:
