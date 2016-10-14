@@ -8,18 +8,19 @@ import types
 from itertools import cycle
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from libdlt.util import util
+from libdlt.depot import Depot
 from libdlt.protocol import factory
 from libdlt.settings import DEPOT_TYPES, THREADS, COPIES, BLOCKSIZE
 from unis.models import Exnode, Service
 from unis.runtime import Runtime
-
 
 class Session(object):
     def __init__(self, url, depots, bs=BLOCKSIZE, timeout=180, **kwargs):
         self._validate_url(url)
         self._runtime = Runtime(url, defer_update=True, **kwargs)
         self._do_flush = True
-        self._blocksize = bs
+        self._blocksize = int(util.human2bytes(bs))
         self._timeout = timeout
         self._plan = cycle
         self._depots = {}
@@ -41,7 +42,6 @@ class Session(object):
         if not self._depots:
             ValueError("no depots found for session, unable to continue")
             
-    
     def upload(self, filepath, folder=None, copies=COPIES, duration=None):
         def _chunked(fh, bs, size):
             offset = 0
@@ -52,7 +52,6 @@ class Session(object):
                     return
                 yield (offset, bs, data)
                 offset += bs
-            
             
         if isinstance(folder, str):
             do_flush = self._do_flush
@@ -72,19 +71,19 @@ class Session(object):
         futures = []
         time_s = time.time()
         
-        depots = self._get_plan(self._depots):
+        depots = self._get_plan(self._depots)
         with open(filepath) as fh:
-            for offset, size, data in _chunked(fh, bs, ex.size):
+            for offset, size, data in _chunked(fh, self._blocksize, ex.size):
                 for n in range(copies):
-                    futures.append(executor.submit(factory.makeAllocation, offset, data, next(depots)))
+                    futures.append(executor.submit(factory.makeAllocation, offset, data, Depot(next(depots))))
                     
         for future in as_completed(futures):
             ext = future.result().GetMetadata()
-            rt.insert(ext, commit=True)
+            self._runtime.insert(ext, commit=True)
             ex.extents.append(ext)
             
         if self._do_flush:
-            rt.flush()
+            self._runtime.flush()
         return (time.time() - time_e, ex)
     
     def download(self, href, filepath, length=0, offset=0):
@@ -119,7 +118,6 @@ class Session(object):
                     fh.write(data)
         
         return (time.time() - time_s, ex)
-        
         
     def mkdir(self, path):
         def _traverse(ls, obj):

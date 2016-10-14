@@ -20,7 +20,7 @@ def upload(filename, href, duration, depots, bs=5, copies=1, directory=None, tim
         return session.upload(filename, copies, duration)
 
 def mkdir(href, path):
-        url = _validate_href(href, path=False)
+    url = _validate_href(href, path=False)
     with Session(url.unis, depots=None):
         return session.mkdir(path)
     
@@ -38,4 +38,4 @@ def _validate_href(href, path=True):
     if not len(path) == 3:
         raise ValueError("Invalid path in download, expected /{0}/{1} - got {2}".format("{collection}", "{id}", url.path))
     
-    return (unis=unis_url, collection=path[1], uid=path[2])
+    return (unis_url, path[1], path[2])
