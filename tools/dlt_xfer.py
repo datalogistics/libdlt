@@ -34,6 +34,8 @@ def main():
                         help='UNIS instance for uploading eXnode metadata')
     parser.add_argument('-b', '--bs', type=str, default='5m',
                         help='Block size')
+    parser.add_argument('-o', '--output', type=str, default=None,
+                        help='Output file')
 
     args = parser.parse_args()
     bs = args.bs
@@ -42,7 +44,7 @@ def main():
     xfer = sess.upload if args.upload else sess.download
         
     for f in args.files:
-        diff, res = xfer(f)
+        diff, res = xfer(f, args.output)
         print ("{0} ({1} {2:.2f} MB/s) {3}".format(res.name, res.size,
                                                    res.size/1e6/diff,
                                                    res.selfRef))
