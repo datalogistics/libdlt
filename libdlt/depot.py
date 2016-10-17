@@ -9,6 +9,7 @@ class Depot():
             self.scheme = o.getscheme(default=None)
             self.host = o.gethost(default=None)
             self.port = o.getport(default=None)
+            self.endpoint = "{}://{}".format(self.scheme, self.authority)
         except Exception as e:
             raise e
 
@@ -18,7 +19,7 @@ class Depot():
         
         @property
         def endpoint(self):
-            return "{0}://{1}".format(self.scheme, self.authority)
+            return self.endpoint
         
         @property
         def scheme(self):
@@ -32,8 +33,10 @@ class Depot():
         def port(self):
             return self.port
 
-        def __repr__(self):
-            return self.uri
-        
         def __str__(self):
             return self.uri
+    
+        def __repr__(self):
+            return self.__str__()
+        
+

@@ -72,15 +72,17 @@ class Session(object):
         time_s = time.time()
         
         depots = self._get_plan(self._depots)
-        with open(filepath) as fh:
+        with open(filepath, "rb") as fh:
             for offset, size, data in _chunked(fh, self._blocksize, ex.size):
                 for n in range(copies):
-                    futures.append(executor.submit(factory.makeAllocation, offset, data, Depot(next(depots))))
+                    futures.append(executor.submit(factory.makeAllocation, data, offset, Depot(next(depots))))
                     
         for future in as_completed(futures):
             ext = future.result().GetMetadata()
             self._runtime.insert(ext, commit=True)
             ex.extents.append(ext)
+
+        time_e = time.time()
             
         if self._do_flush:
             self._runtime.flush()
@@ -91,13 +93,14 @@ class Session(object):
             for ext in ls:
                 try:
                     alloc = factory.buildAllocation(ext)
-                    depot = self._depots[Depot(ext.location).endpoint]
-                    return alloc.Read(**depots[depot].to_JSON())
+                    d = Depot(ext.location)
+                    return alloc.Read(**self._depots[d.endpoint].to_JSON())
                 except Exception as exp:
+                    print (exp)
                     pass
             return None
 
-        self._validate_url(url)
+        self._validate_url(href)
         time_s = time.time()
         ex = self._runtime.find(href)
         exts = ex.extents
@@ -109,13 +112,16 @@ class Session(object):
                 chunks[ext.offset].append(ext)
             else:
                 chunks[ext.offset] = [ext]
-        
-        
-        with open(filepath) as fh:
+
+        if not filepath:
+            filepath = ex.name        
+                
+        with open(filepath, "wb") as fh:
             with ThreadPoolExecutor(max_workers=THREADS) as executor:
-                for ext, data in zip(exts, executor.map(lambda x: _download_chunk(x), chunks)):
-                    fh.seek(ext.offset)
-                    fh.write(data)
+                for ext, data in zip(exts, executor.map(_download_chunk, chunks.values())):
+                    if data:
+                        fh.seek(ext.offset)
+                        fh.write(data)
         
         return (time.time() - time_s, ex)
         

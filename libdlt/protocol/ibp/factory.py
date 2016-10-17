@@ -4,12 +4,13 @@ import datetime
 import logging
 
 from libdlt.protocol.exceptions import AllocationException
-from libdlt.protocol.ibp.allocation import Allocation
+from libdlt.protocol.ibp.allocation import Allocation, IBPExtent
 import libdlt.protocol.ibp.services as services
 import libdlt.protocol.ibp.flags as flags
 
 from unis.models import Extent
 
+# construct adaptor from existing metadata
 def buildAllocation(json):
     if type(json) is str:
         try:
@@ -18,7 +19,9 @@ def buildAllocation(json):
             logging.getLogger().warn("{func:>20}| Could not decode allocation - {exp}".format(func = "buildAllocation", exp = exp))
             raise AllocationException("Could not decode json")
 
-    if type(json) is dict:
+    if type(json) is IBPExtent:
+        alloc = Allocation(json.to_JSON())        
+    elif type(json) is dict:
         alloc = Allocation(json)
     elif type(json) is Allocation:
         alloc = json
@@ -29,25 +32,31 @@ def buildAllocation(json):
     
     return tmpAdapter
 
-def makeAllocation(offset, data, depot, **kwds):
-    ps = services.ProtocolService()
-    alloc = ps.Allocate(depot, offset, len(data), **kwds)
-    # XXX: write/send first
-    return IBPAdaptor(alloc)
+# create a new object and metadata given data and depot target
+def makeAllocation(data, offset, depot, **kwds):
+    return IBPAdaptor(data=data, offset=offset, depot=depot, **kwds)
     
 class IBPAdaptor(object):
-    def __init__(self, alloc):
+    def __init__(self, alloc=None, data=None, offset=None, depot=None, **kwds):
         self._log = logging.getLogger()
         self._service = services.ProtocolService()
-        self._allocation = alloc
+
+        if data:
+            self._allocation = self._service.Allocate(depot, offset, len(data), **kwds)
+            self.Write(data,**kwds)
+        else:
+            self._allocation = alloc
     
     def GetMetadata(self):
         return self._allocation
 
-    def Read(self, **kwargs):
-        pass
+    def Read(self, **kwds):
+        return self._service.Load(self._allocation, **kwds)
+
+    def Write(self, data, **kwds):
+        self._service.Store(self._allocation, data, len(data), **kwds)
     
-    def Check(self, **kwargs):
+    def Check(self, **kwds):
         depot_status = self._service.GetStatus(self._allocation.depot)
         
         if not depot_status:
@@ -64,21 +73,21 @@ class IBPAdaptor(object):
         
         return True
         
-    def Copy(self, destination, **kwargs):
+    def Copy(self, destination, **kwds):
         host   = self._allocation.host
         port   = self._allocation.port
-        offset = kwargs.get("offset", 0)
-        size   = kwargs.get("size", self._allocation.depotSize - offset)
+        offset = kwds.get("offset", 0)
+        size   = kwds.get("size", self._allocation.depotSize - offset)
         
         dest_alloc = buildAllocation(self._allocation.to_JSON())
 
-        response = self._service.Allocate(destination, size, **kwargs)
+        response = self._service.Allocate(destination, size, **kwds)
         if not response:
             return False
         
         dest_alloc._allocation.Inherit(response)
         dest_alloc.offset = offset
-        duration = self._service.Send(self._allocation, alloc, **kwargs)
+        duration = self._service.Send(self._allocation, alloc, **kwds)
         
         if not duration:
             return False
@@ -88,8 +97,8 @@ class IBPAdaptor(object):
         
         return dest_alloc
         
-    def Move(self, destination, **kwargs):
-        return self.Copy(destination, **kwargs)
+    def Move(self, destination, **kwds):
+        return self.Copy(destination, **kwds)
         
     def Release(self):
         details = self._service.Probe(self._allocation)
@@ -105,8 +114,8 @@ class IBPAdaptor(object):
         else:
             return False
 
-    def Manage(self, **kwargs):
-        if not self._service.Manage(self._allocation, **kwargs):
+    def Manage(self, **kwds):
+        if not self._service.Manage(self._allocation, **kwds):
             return False
 
         #####################
@@ -115,8 +124,8 @@ class IBPAdaptor(object):
         self._log.debug("Manage result: {status}".format(status = status))
         #####################
 
-        if "duration" in kwargs:
-            self._allocation.end = datetime.datetime.utcnow() + datetime.timedelta(seconds = kwargs["duration"])
+        if "duration" in kwds:
+            self._allocation.end = datetime.datetime.utcnow() + datetime.timedelta(seconds = kwds["duration"])
 
     def __eq__(self, other):
         if type(other) is IBPAdaptor:

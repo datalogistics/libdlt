@@ -26,8 +26,16 @@ class Allocation(IBPExtent):
         super(Allocation, self).initialize(data)
         self._log       = logging.getLogger()
         self.timestamp  = 0
-        self.depot      = Depot(data["location"]) if "location" in data else None
+        self.depot      = Depot(self.location) if hasattr(self, "location") else None
         self.lifetime   = Lifetime()
+        self.readcap    = None
+        self.writecap   = None
+        self.managecap  = None
+
+        if data:
+            self.SetReadCapability(self.mapping.read)
+            self.SetWriteCapability(self.mapping.write)
+            self.SetManageCapability(self.mapping.manage)
         
     def getStartTime(self):
         return datetime.strptime(self.lifetimes.start, "%Y-%m-%d %H:%M:%S")
@@ -36,19 +44,19 @@ class Allocation(IBPExtent):
         return datetime.strptime(self.lifetimes.start, "%Y-%m-%d %H:%M:%S")
 
     def setStartTime(self, dt):
-        self.lifetimes.start = dt.strftime("%Y-%m-%d %H:%M:%S")
+        self.lifetime.start = dt.strftime("%Y-%m-%d %H:%M:%S")
 
     def setEndTime(self, dt):
-        self.lifetimes.end = dt.strftime("%Y-%m-%d %H:%M:%S")
+        self.lifetime.end = dt.strftime("%Y-%m-%d %H:%M:%S")
         
     def GetReadCapability(self):
-        return self.mapping.read
+        return self.readcap
 
     def GetWriteCapability(self):
-        return self.mapping.write
+        return self.writecap
 
     def GetManageCapability(self):
-        return self.mapping.manage
+        return self.managecap
         
     def SetReadCapability(self, read):
         try:
@@ -57,6 +65,7 @@ class Allocation(IBPExtent):
             self._log.warn("{func:>20}| Unable to create capability - {exp}".format(func = "SetReadCapability", exp = exp))
             return False
         self.mapping.read = str(tmpCap)
+        self.readcap = tmpCap
         
     def SetWriteCapability(self, write):
         try:
@@ -65,6 +74,7 @@ class Allocation(IBPExtent):
             self._log.warn("{func:>20}| Unable to create capability - {exp}".format(func = "SetWriteCapability", exp = exp))
             return False
         self.mapping.write = str(tmpCap)
+        self.writecap = tmpCap
 
     def SetManageCapability(self, manage):
         try:
@@ -73,6 +83,7 @@ class Allocation(IBPExtent):
             self._log.warn("{func:>20}| Unable to create capability - {exp}".format(func = "SetManageCapability", exp = exp))
             return False
         self.mapping.manage = str(tmpCap)
+        self.managecap = tmpCap
 
 class Capability(object):
     def __init__(self, cap_string):
