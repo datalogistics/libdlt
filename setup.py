@@ -16,6 +16,8 @@ setup(
     install_requires=[
         "rados",
         "unisrt",
+        "uritools",
+        "jsonschema",
         "websocket-client>=0.34",
         "requests",
         "six>=1.8.0"
