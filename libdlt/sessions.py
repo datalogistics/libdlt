@@ -9,13 +9,13 @@ from itertools import cycle
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from libdlt.protocol import factory
-from libdlt.settings import DEPOT_TYPES, THREADS, COPIES, BLOCKSIZE
+from libdlt.settings import DEPOT_TYPES, THREADS, COPIES, BLOCKSIZE, TIMEOUT
 from unis.models import Exnode, Service
 from unis.runtime import Runtime
 
 
 class Session(object):
-    def __init__(self, url, depots, bs=BLOCKSIZE, timeout=180, **kwargs):
+    def __init__(self, url, depots, bs=BLOCKSIZE, timeout=TIMEOUT, **kwargs):
         self._validate_url(url)
         self._runtime = Runtime(url, defer_update=True, **kwargs)
         self._do_flush = True

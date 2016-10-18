@@ -5,24 +5,24 @@ from libdlt.sessions import Session
 
 def download(href, filename, length=0, offset=0, timeout=180, **kwargs):
     url = _validate_href(href)
-    with Session(url.unis, depots=None, timeout=timeout, **kwargs) as session:
-        return session.download(url.uid, filename, length, offset)
+    session = Session(url.unis, depots=None, timeout=timeout, **kwargs)
+    return session.download(url.uid, filename, length, offset)
 
 def upload(filename, href, duration, depots, bs=5, copies=1, directory=None, timeout=180, **kwargs):
     url = _validate_href(href, path=False)
-    with Session(url.unis, depots=depots, bs=bs, timeout=timeout, **kwargs) as session:
-        session.copies = copies
-        session.duration = duration
+    session = Session(url.unis, depots=depots, bs=bs, timeout=timeout, **kwargs)
+    session.copies = copies
+    session.duration = duration
+    
+    if directory:
+        session.mkdir(directory)
         
-        if directory:
-            session.mkdir(directory)
-        
-        return session.upload(filename, copies, duration)
+    return session.upload(filename, copies, duration)
 
 def mkdir(href, path):
-        url = _validate_href(href, path=False)
-    with Session(url.unis, depots=None):
-        return session.mkdir(path)
+    url = _validate_href(href, path=False)
+    session = Session(url.unis, depots=None)
+    return session.mkdir(path)
     
 
 def _validate_href(href, path=True):
