@@ -10,7 +10,7 @@ setup(
     license = "BSD",
     keywords = "DLT libdlt tools",
     url = "https://github.com/datalogistics/libdlt",
-    packages=['libdlt', 'tools'],
+    packages=['libdlt', 'libdlt.util', 'libdlt.protocol', 'libdlt.protocol.ceph', 'libdlt.protocol.ibp', 'tools'],
     package_data={'tools' : ['*.py']},
     include_package_data = True,
     install_requires=[

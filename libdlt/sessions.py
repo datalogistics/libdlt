@@ -20,7 +20,7 @@ class Session(object):
         self._validate_url(url)
         self._runtime = Runtime(url, defer_update=True, **kwargs)
         self._do_flush = True
-        self._blocksize = int(util.human2bytes(bs))
+        self._blocksize = bs if isinstance(bs, int) else int(util.human2bytes(bs))
         self._timeout = timeout
         self._plan = cycle
         self._depots = {}
@@ -61,7 +61,7 @@ class Session(object):
             self._do_flush = do_flush
         
         stat = os.stat(filepath)
-        ex = Exnode({ "parent": folder, "created": int(time.time()), "mode": "file", "size": stat.st_size,
+        ex = Exnode({ "parent": folder, "created": int(time.time() * 1000000), "mode": "file", "size": stat.st_size,
                       "permission": format(stat.st_mode & 0o0777, 'o'), "owner": getpass.getuser(),
                       "name": os.path.basename(filepath) })
         ex.group = ex.owner
@@ -85,7 +85,7 @@ class Session(object):
             self._runtime.insert(ext, commit=True)
             ext.parent = ex
             ex.extents.append(ext)
-
+            
         time_e = time.time()
             
         if self._do_flush:
@@ -144,12 +144,22 @@ class Session(object):
         
         folder_ls = list(self._runtime.exnodes.where({"name": path[0], "mode": "directory", "parent": None}))
         if folder_ls:
-            path, root = _traverse(path, folder_ls[0])
+            path, root = _traverse(path[1:], folder_ls[0])
         else:
             root = None
         
         for folder in path:
-            new_folder = Exnode({"name": folder, "parent": root, "mode": "directory"})
+            owner = getpass.getuser()
+            now = int(time.time() * 1000000)
+            new_folder = Exnode({"name": folder, 
+                                 "parent": root, 
+                                 "owner": owner, 
+                                 "group": owner, 
+                                 "created": now, 
+                                 "updated": now, 
+                                 "children": [], 
+                                 "permission": format(0o0755, 'o'), 
+                                 "mode": "directory"})
             self._runtime.insert(new_folder, commit=True)
             if root:
                 if not hasattr(root, "children"):
