@@ -167,7 +167,6 @@ class Session(object):
                     root.commit("children")
                 else:
                     root.children.append(new_folder)
-                new_folder.parent = root
                     
             root = new_folder
         
