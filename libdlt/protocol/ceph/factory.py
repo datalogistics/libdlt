@@ -22,11 +22,11 @@ def buildAllocation(obj):
         raise AllocationException("Invalid input type")
     return CephAdaptor(alloc)
 
-def makeAllocation(offset, data, depot, **kwds):
+def makeAllocation(data, offset, depot, **kwds):
     alloc = CephExtent()
     pool = kwds.get("pool", "dlt")
     oid = str(uuid.uuid4())
-    alloc.location = "{0}/{1}/{2}".format(depot, pool, oid)
+    alloc.location = "{0}/{1}/{2}".format(depot.endpoint, pool, oid)
     alloc.pool = pool
     alloc.offset = offset
     alloc.size = len(data)

@@ -75,11 +75,14 @@ class Session(object):
         with open(filepath, "rb") as fh:
             for offset, size, data in _chunked(fh, self._blocksize, ex.size):
                 for n in range(copies):
-                    futures.append(executor.submit(factory.makeAllocation, data, offset, Depot(next(depots))))
+                    d = Depot(next(depots))
+                    futures.append(executor.submit(factory.makeAllocation, data, offset, d,
+                                                   **self._depots[d.endpoint].to_JSON()))
                     
         for future in as_completed(futures):
             ext = future.result().GetMetadata()
             self._runtime.insert(ext, commit=True)
+            ext.parent = ex
             ex.extents.append(ext)
 
         time_e = time.time()
