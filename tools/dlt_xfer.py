@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
-from pprint import pprint
-
+import json
 import libdlt
 
 UNIS_URL = "http://localhost:8888"
@@ -34,13 +33,25 @@ def main():
                         help='UNIS instance for uploading eXnode metadata')
     parser.add_argument('-b', '--bs', type=str, default='5m',
                         help='Block size')
+    parser.add_argument('-d', '--depot-file', type=str, default=None,
+                        help='Depots in a JSON dict used for upload')
     parser.add_argument('-o', '--output', type=str, default=None,
                         help='Output file')
 
     args = parser.parse_args()
     bs = args.bs
-    
-    sess = libdlt.Session(args.host, bs=bs, depots=DEPOTS)
+    df = args.depot_file
+
+    depots = None
+    if df:
+        try:
+            f = open(df, "r")
+            depots = json.loads(f.read())
+        except Exception as e:
+            print ("ERROR: Could not read depot file: {}".format(e))
+            exit(1)
+
+    sess = libdlt.Session(args.host, bs=bs, depots=depots)
     xfer = sess.upload if args.upload else sess.download
         
     for f in args.files:

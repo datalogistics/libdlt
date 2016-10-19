@@ -38,9 +38,10 @@ class Session(object):
                 if isinstance(depot, dict):
                     self._depots[name] = Service(depot)
         else:
-            ValueError("depots must contain a list of depot description objects or a valid unis url")
-        if not self._depots:
-            ValueError("no depots found for session, unable to continue")
+            raise ValueError("depots argument must contain a list of depot description objects or a valid unis url")
+
+        if not len(self._depots):
+            raise ValueError("No depots found for session, unable to continue")
             
     def upload(self, filepath, folder=None, copies=COPIES, duration=None):
         def _chunked(fh, bs, size):
@@ -99,7 +100,7 @@ class Session(object):
                     d = Depot(ext.location)
                     return alloc.Read(**self._depots[d.endpoint].to_JSON())
                 except Exception as exp:
-                    print (exp)
+                    print ("READ Error: {}".format(exp))
                     pass
             return None
 
