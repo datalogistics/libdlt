@@ -149,7 +149,12 @@ class Session(object):
             root = None
         
         for folder in path:
-            new_folder = Exnode({"name": folder, "parent": root, "mode": "directory"})
+            new_folder = Exnode({"name": folder, "parent": root, "mode": "directory",
+                                 "created": int(time.time()),
+                                 "permission": format(0o0755, 'o'),
+                                 "owner": getpass.getuser()})
+            new_folder.group = new_folder.owner
+            new_folder.modified = new_folder.created
             self._runtime.insert(new_folder, commit=True)
             if root:
                 if not hasattr(root, "children"):
@@ -157,6 +162,7 @@ class Session(object):
                     root.commit("children")
                 else:
                     root.children.append(new_folder)
+                new_folder.parent = root
                     
             root = new_folder
         
