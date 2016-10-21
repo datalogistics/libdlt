@@ -37,6 +37,8 @@ def main():
                         help='Depots in a JSON dict used for upload')
     parser.add_argument('-o', '--output', type=str, default=None,
                         help='Output file')
+    parser.add_argument('-V', '--visualize', type=str, default=None,
+                        help='Periscope URL for visualization')
 
     args = parser.parse_args()
     bs = args.bs
@@ -51,7 +53,8 @@ def main():
             print ("ERROR: Could not read depot file: {}".format(e))
             exit(1)
 
-    sess = libdlt.Session(args.host, bs=bs, depots=depots)
+    sess = libdlt.Session(args.host, bs=bs, depots=depots,
+                          **{"viz_url": args.visualize})
     xfer = sess.upload if args.upload else sess.download
         
     for f in args.files:

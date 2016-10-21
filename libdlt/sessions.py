@@ -1,12 +1,14 @@
-
 import getpass
 import os
 import re
 import time
 import types
+import uuid
+from uritools import urisplit
 
 from itertools import cycle
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from socketIO_client import SocketIO
 
 from libdlt.util import util
 from libdlt.depot import Depot
@@ -16,14 +18,30 @@ from unis.models import Exnode, Service
 from unis.runtime import Runtime
 
 class Session(object):
+    __WS_MTYPE = {
+        'r' : 'peri_download_register',
+        'c' : 'peri_download_clear',
+        'p' : 'peri_download_pushdata'
+    }
+
     def __init__(self, url, depots, bs=BLOCKSIZE, timeout=TIMEOUT, **kwargs):
         self._validate_url(url)
-        self._runtime = Runtime(url, defer_update=True, **kwargs)
+        self._runtime = Runtime(url, defer_update=True)
         self._do_flush = True
         self._blocksize = bs if isinstance(bs, int) else int(util.human2bytes(bs))
         self._timeout = timeout
         self._plan = cycle
         self._depots = {}
+        self._viz = kwargs.get("viz_url", None)
+        self._id = uuid.uuid4().hex  # use if we're matching a webGUI session
+
+        if self._viz:
+            try:
+                o = urisplit(self._viz)
+                self._sock = SocketIO(o.host, o.port)
+            except Exception as e:
+                print ("websocket connection failed: {}".format(e))
+                # non-fatal
         
         if not depots:
             for depot in self._runtime.services.where(lambda x: x.serviceType in DEPOT_TYPES):
@@ -42,7 +60,34 @@ class Session(object):
 
         if not len(self._depots):
             raise ValueError("No depots found for session, unable to continue")
+
+    def _viz_register(self, name, size, conns):
+        if self._viz:
+            try:
+                msg = {"sessionId": self._id,
+                       "filename": name,
+                       "size": size,
+                       "connections": conns,
+                       "timestamp": time.time()*1e3
+                   }
+                self._sock.emit(self.__WS_MTYPE['r'], msg)
+            except Exception as e:
+                pass
             
+    def _viz_progress(self, depot, size, offset):
+        if self._viz:
+            try:
+                d = Depot(depot)
+                msg = {"sessionId": self._id,
+                       "host":  d.host,
+                       "length": size,
+                       "offset": offset,
+                       "timestamp": time.time()*1e3
+                   }
+                self._sock.emit(self.__WS_MTYPE['p'], msg)
+            except Exception as e:
+                pass
+        
     def upload(self, filepath, folder=None, copies=COPIES, duration=None):
         def _chunked(fh, bs, size):
             offset = 0
@@ -67,11 +112,14 @@ class Session(object):
         ex.group = ex.owner
         ex.updated = ex.created
         self._runtime.insert(ex, commit=True)
-        
+
+        # register download with Periscope
+        self._viz_register(ex.name, ex.size, len(self._depots))
+
         executor = ThreadPoolExecutor(max_workers=THREADS)
         futures = []
         time_s = time.time()
-        
+
         depots = self._get_plan(self._depots)
         with open(filepath, "rb") as fh:
             for offset, size, data in _chunked(fh, self._blocksize, ex.size):
@@ -82,6 +130,7 @@ class Session(object):
                     
         for future in as_completed(futures):
             ext = future.result().GetMetadata()
+            self._viz_progress(ext.location, ext.size, ext.offset)
             self._runtime.insert(ext, commit=True)
             ext.parent = ex
             ex.extents.append(ext)
@@ -90,7 +139,7 @@ class Session(object):
             
         if self._do_flush:
             self._runtime.flush()
-        return (time.time() - time_e, ex)
+        return (time_e - time_s, ex)
     
     def download(self, href, filepath, length=0, offset=0):
         def _download_chunk(ls):
@@ -104,26 +153,33 @@ class Session(object):
                     pass
             return None
 
-        self._validate_url(href)
-        time_s = time.time()
+        self._validate_url(href)        
         ex = self._runtime.find(href)
         exts = ex.extents
         chunks = {}
+        locs = {}
         
-        # bin extents
+        # bin extents and locations
         for ext in exts:
             if ext.offset in chunks:
+                locs[ext.location].append(ext)
                 chunks[ext.offset].append(ext)
             else:
+                locs[ext.location] = [ext]
                 chunks[ext.offset] = [ext]
 
         if not filepath:
-            filepath = ex.name        
-                
+            filepath = ex.name
+
+        # register download with Periscope
+        self._viz_register(ex.name, ex.size, len(locs))
+
+        time_s = time.time()
         with open(filepath, "wb") as fh:
             with ThreadPoolExecutor(max_workers=THREADS) as executor:
                 for ext, data in zip(exts, executor.map(_download_chunk, chunks.values())):
                     if data:
+                        self._viz_progress(ext.location, ext.size, ext.offset)
                         fh.seek(ext.offset)
                         fh.write(data)
         

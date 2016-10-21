@@ -18,7 +18,7 @@ setup(
         "unisrt",
         "uritools",
         "jsonschema",
-        "websocket-client>=0.34",
+        "socketIO-client",
         "requests",
         "six>=1.8.0"
     ],
