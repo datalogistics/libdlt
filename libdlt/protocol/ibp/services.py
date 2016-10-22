@@ -53,7 +53,7 @@ class ProtocolService(object):
         
         try:
             tmpCommand = "{0} {1} {2} {3} {4}\n".format(flags.IBPv031, flags.IBP_STATUS, flags.IBP_ST_INQ, pwd, timeout)
-            result = self._dispatch_command(depot.host, depot.port, tmpCommand)
+            result = self._dispatch_command(depot, tmpCommand)
             if not result:
                 return None
             result = result.split(" ")
@@ -117,7 +117,7 @@ class ProtocolService(object):
                                                                             reliability,
                                                                             timeout
                                                                             )
-            result = self._dispatch_command(alloc.host, alloc.port, tmpCommand)
+            result = self._dispatch_command(alloc.depot, tmpCommand)
             if not result:
                 return None
             result = result.split(" ")
@@ -179,7 +179,7 @@ class ProtocolService(object):
 
         try:
             tmpCommand = "{0} {1} {2} {3} {4} {5} {6} \n".format(flags.IBPv031, flags.IBP_ALLOCATE, reliability, cap_type, duration, size, timeout)
-            result = self._dispatch_command(depot.host, depot.port, tmpCommand)
+            result = self._dispatch_command(depot, tmpCommand)
             if not result:
                 return None
             result = result.split(" ")[1:]
@@ -262,7 +262,7 @@ class ProtocolService(object):
         
         try:
             tmpCommand = "{0} {1} {2} {3} {4} {5}\n".format(flags.IBPv031, flags.IBP_STORE, cap.key, cap.wrmKey, size, timeout)
-            result = self._dispatch_data(depot.host, depot.port, tmpCommand, data)
+            result = self._dispatch_data(depot, tmpCommand, data)
             if not result:
                 return None
             result = result.split(" ")
@@ -316,7 +316,7 @@ class ProtocolService(object):
                                                                                                                                  offset  = offset,
                                                                                                                                  size    = source.depotSize,
                                                                                                                                  timeout = timeout)
-            result = self._dispatch_command(source.host, source.port, tmpCommand)
+            result = self._dispatch_command(source.depot, tmpCommand)
             if not result:
                 return None
             result = result.split(" ")
@@ -361,7 +361,7 @@ class ProtocolService(object):
                                                                                                     offset  = offset,
                                                                                                     length  = alloc.size,
                                                                                                     timeout = timeout)
-            result = self._receive_data(depot.host, depot.port, tmpCommand, alloc.size)
+            result = self._receive_data(depot, tmpCommand, alloc.size)
             if not result:
                 return None
         except Exception as exp:
@@ -375,11 +375,11 @@ class ProtocolService(object):
             return result["data"]
 
 
-    def _receive_data(self, host, port, command, size):
-        port = int(port)
+    def _receive_data(self, depot, command, size):
+        port = int(depot.port)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(10)
-        sock.connect((host, port))
+        sock.connect((depot.host, port))
 
         if isinstance(command, str):
             command = command.encode()
@@ -387,33 +387,38 @@ class ProtocolService(object):
         try:
             sock.send(command)
             header = sock.recv(1024)
-            recv = 0
-            data = b''
+            if isinstance(header, bytes):
+                header = header.decode()
+            nl = header.index('\n') # throws exception if not found
+            recv = len(header) - nl - 1
+            if recv:
+                data = header[-recv:].encode()
+            else:
+                data = b''
             while recv < size:
-                rsize = min(size, size - recv)
+                rsize = size - recv
                 r = sock.recv(rsize)
                 data += r
                 recv += len(r)
         except socket.timeout as e:
-            self._log.warn("Socket Timeout - {0}".format(e))
+            self._log.warn("Socket Timeout - {0} {1}".format(e, rsize))
             self._log.warn("--Attempted to execute: {0}".format(command))
             return None
-        except e:
-            self._log.warn("Socket error - {0}".format(3))
+        except Exception as e:
+            self._log.warn("Socket error - {0}".format(e))
             self._log.warn("--Attempted to execute: {0}".format(command))
             return None
+        finally:
+            sock.close()
 
-        if isinstance(header, bytes):
-            header = header.decode()
-                        
         return { "headers": header, "data": data }
 
 
-    def _dispatch_data(self, host, port, command, data):
-        port = int(port)
+    def _dispatch_data(self, depot, command, data):
+        port = int(depot.port)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(10)
-        sock.connect((host, port))
+        sock.connect((depot.host, port))
 
         if isinstance(command, str):
             command = command.encode()
@@ -443,12 +448,12 @@ class ProtocolService(object):
         return response
         
 
-    def _dispatch_command(self, host, port, command):
+    def _dispatch_command(self, depot, command):
         # Create socket and configure with host and port
-        port = int(port)
+        port = int(depot.port)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(10)
-        sock.connect((host, port))
+        sock.connect((depot.host, port))
 
         if isinstance(command, str):
             command = command.encode()
