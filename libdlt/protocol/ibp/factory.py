@@ -3,6 +3,7 @@ import json
 import datetime
 import logging
 
+from libdlt.logging import getLogger, debug, info
 from libdlt.protocol.exceptions import AllocationException
 from libdlt.protocol.ibp.allocation import Allocation, IBPExtent
 import libdlt.protocol.ibp.services as services
@@ -11,12 +12,13 @@ import libdlt.protocol.ibp.flags as flags
 from unis.models import Extent
 
 # construct adaptor from existing metadata
+@info("IBP.factory")
 def buildAllocation(json):
     if type(json) is str:
         try:
             json = json.loads(json)
         except Exception as exp:
-            logging.getLogger().warn("{func:>20}| Could not decode allocation - {exp}".format(func = "buildAllocation", exp = exp))
+            logger.warn("{func:>20}| Could not decode allocation - {exp}".format(func = "buildAllocation", exp = exp))
             raise AllocationException("Could not decode json")
 
     if type(json) is IBPExtent:
@@ -33,30 +35,36 @@ def buildAllocation(json):
     return tmpAdapter
 
 # create a new object and metadata given data and depot target
+@info("IBP.factory")
 def makeAllocation(data, offset, depot, **kwds):
     return IBPAdaptor(data=data, offset=offset, depot=depot, **kwds)
     
 class IBPAdaptor(object):
+    @debug("IBPAdaptor")
     def __init__(self, alloc=None, data=None, offset=None, depot=None, **kwds):
-        self._log = logging.getLogger()
+        self.log = getLogger()
         self._service = services.ProtocolService()
-
+        
         if data:
             self._allocation = self._service.Allocate(depot, offset, len(data), **kwds)
             self.Write(data,**kwds)
         else:
             self._allocation = alloc
     
-    def GetMetadata(self):
+    @info("IBPAdaptor")
+    def getMetadata(self):
         return self._allocation
-
-    def Read(self, **kwds):
+        
+    @info("IBPAdaptor")
+    def read(self, **kwds):
         return self._service.Load(self._allocation, **kwds)
-
-    def Write(self, data, **kwds):
+        
+    @info("IBPAdaptor")
+    def write(self, data, **kwds):
         self._service.Store(self._allocation, data, len(data), **kwds)
-    
-    def Check(self, **kwds):
+        
+    @info("IBPAdaptor")
+    def check(self, **kwds):
         depot_status = self._service.GetStatus(self._allocation.depot)
         
         if not depot_status:
@@ -73,14 +81,15 @@ class IBPAdaptor(object):
         
         return True
         
-    def Copy(self, destination, **kwds):
+    @info("IBPAdaptor")
+    def copy(self, destination, **kwds):
         host   = self._allocation.host
         port   = self._allocation.port
         offset = kwds.get("offset", 0)
         size   = kwds.get("size", self._allocation.depotSize - offset)
         
         dest_alloc = buildAllocation(self._allocation.to_JSON())
-
+        
         response = self._service.Allocate(destination, size, **kwds)
         if not response:
             return False
@@ -97,10 +106,12 @@ class IBPAdaptor(object):
         
         return dest_alloc
         
-    def Move(self, destination, **kwds):
+    @info("IBPAdaptor")
+    def move(self, destination, **kwds):
         return self.Copy(destination, **kwds)
         
-    def Release(self):
+    @info("IBPAdaptor")
+    def release(self):
         details = self._service.Probe(self._allocation)
         self._allocation.end = datetime.datetime.utcnow()
         
@@ -114,14 +125,15 @@ class IBPAdaptor(object):
         else:
             return False
 
-    def Manage(self, **kwds):
+    @info("IBPAdaptor")
+    def manage(self, **kwds):
         if not self._service.Manage(self._allocation, **kwds):
             return False
 
         #####################
         # FOR DEBUGGING ONLY#
         status = self._service.Probe(self._allocation)
-        self._log.debug("Manage result: {status}".format(status = status))
+        self.log.debug("Manage result: {status}".format(status = status))
         #####################
 
         if "duration" in kwds:

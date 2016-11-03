@@ -12,7 +12,9 @@ from socketIO_client import SocketIO
 
 from libdlt.util import util
 from libdlt.depot import Depot
+from libdlt.logging import getLogger, debug, info
 from libdlt.protocol import factory
+from libdlt.schedule import BaseDownloadSchedule, BaseUploadSchedule
 from libdlt.settings import DEPOT_TYPES, THREADS, COPIES, BLOCKSIZE, TIMEOUT
 from unis.models import Exnode, Service
 from unis.runtime import Runtime
@@ -23,7 +25,8 @@ class Session(object):
         'c' : 'peri_download_clear',
         'p' : 'peri_download_pushdata'
     }
-
+    
+    @debug("Session")
     def __init__(self, url, depots, bs=BLOCKSIZE, timeout=TIMEOUT, **kwargs):
         self._validate_url(url)
         self._runtime = Runtime(url, defer_update=True)
@@ -34,13 +37,14 @@ class Session(object):
         self._depots = {}
         self._viz = kwargs.get("viz_url", None)
         self._id = uuid.uuid4().hex  # use if we're matching a webGUI session
+        self.log = getLogger()
 
         if self._viz:
             try:
                 o = urisplit(self._viz)
                 self._sock = SocketIO(o.host, o.port)
             except Exception as e:
-                print ("websocket connection failed: {}".format(e))
+                self.log.warn("Session.__init__: websocket connection failed: {}".format(e))
                 # non-fatal
         
         if not depots:
@@ -60,7 +64,8 @@ class Session(object):
 
         if not len(self._depots):
             raise ValueError("No depots found for session, unable to continue")
-
+    
+    @debug("Session")
     def _viz_register(self, name, size, conns):
         if self._viz:
             try:
@@ -74,6 +79,7 @@ class Session(object):
             except Exception as e:
                 pass
             
+    @debug("Session")
     def _viz_progress(self, depot, size, offset):
         if self._viz:
             try:
@@ -88,7 +94,12 @@ class Session(object):
             except Exception as e:
                 pass
         
-    def upload(self, filepath, folder=None, copies=COPIES, duration=None):
+    #### TODO ####
+    #  Upload assumes sucessful push to all depots
+    #  Needs better success/failure metrics
+    ##############
+    @info("Session")
+    def upload(self, filepath, folder=None, copies=COPIES, duration=None, schedule=BaseUploadSchedule()):
         def _chunked(fh, bs, size):
             offset = 0
             while True:
@@ -112,24 +123,24 @@ class Session(object):
         ex.group = ex.owner
         ex.updated = ex.created
         self._runtime.insert(ex, commit=True)
-
+        
         # register download with Periscope
         self._viz_register(ex.name, ex.size, len(self._depots))
-
+        
         executor = ThreadPoolExecutor(max_workers=THREADS)
         futures = []
         time_s = time.time()
-
-        depots = self._get_plan(self._depots)
+        
+        schedule.setSource(self._depots)
         with open(filepath, "rb") as fh:
             for offset, size, data in _chunked(fh, self._blocksize, ex.size):
                 for n in range(copies):
-                    d = Depot(next(depots))
-                    futures.append(executor.submit(factory.makeAllocation, data, offset, d,
+                    d = schedule.get({"offset": offset, "size": size, "data": data})
+                    futures.append(executor.submit(factory.makeAllocation, data, offset, duration, d,
                                                    **self._depots[d.endpoint].to_JSON()))
                     
         for future in as_completed(futures):
-            ext = future.result().GetMetadata()
+            ext = future.result().getMetadata()
             self._viz_progress(ext.location, ext.size, ext.offset)
             self._runtime.insert(ext, commit=True)
             ext.parent = ex
@@ -141,50 +152,113 @@ class Session(object):
             self._runtime.flush()
         return (time_e - time_s, ex)
     
-    def download(self, href, filepath, length=0, offset=0):
-        def _download_chunk(ls):
-            for ext in ls:
-                try:
-                    alloc = factory.buildAllocation(ext)
-                    d = Depot(ext.location)
-                    return alloc.Read(**self._depots[d.endpoint].to_JSON())
-                except Exception as exp:
-                    print ("READ Error: {}".format(exp))
-                    pass
-            return None
-
-        self._validate_url(href)        
+    @info("Session")
+    def _dl_generator(self, executor, schedule, ex):
+        def _download_chunk(ext):
+            try:
+                alloc = factory.buildAllocation(ext)
+                d = Depot(ext.location)
+                return ext, alloc.read(**self._depots[d.endpoint].to_JSON())
+            except Exception as exp:
+                print ("READ Error: {}".format(exp))
+            return ext, False
+        
+        in_flight = []
+        pending = []
+        current = 0
+        
+        # Begin first THREADS requests
+        for _ in range(THREADS):
+            alloc = schedule.get({ "offset": current })
+            in_flight.append(executor.submit(_download_chunk, alloc))
+            current += alloc.size
+            
+        # If there is remaining file to download
+        if current < ex.size:
+            pending.append((current, ex.size))
+            
+        # Wait for the first result
+        done, in_flight = futures.wait(in_flight, return_when=futures.FIRST_COMPLETED)
+        while done:
+            in_flight = list(in_flight)
+            for response in done:
+                alloc, data = response.result()
+                
+                # If download was successful
+                if data:
+                    yield (alloc, data)
+                else:
+                    # Return the request to the pending list
+                    pending.append((alloc.offset, alloc.size + alloc.offset))
+                        
+            if pending:
+                segment = pending.pop()
+                alloc = schedule.get({ "offset": segment[0] })
+                end = alloc.offset + alloc.size
+                if end < segment[1]:
+                    pending.append((end, segment[1]))
+                    in_flight.append(executor.submit(_download_chunk, alloc))
+                done, in_flight = futures.wait(in_flight, return_when=futures.FIRST_COMPLETED)
+    
+    @info("Session")
+    def download(self, href, filepath, length=0, offset=0, schedule=BaseDownloadSchedule()):
+        self._validate_url(href)
         ex = self._runtime.find(href)
-        exts = ex.extents
-        chunks = {}
+        allocs = ex.extents
+        schedule.setSource(allocs)
         locs = {}
         
         # bin extents and locations
-        for ext in exts:
-            if ext.offset in chunks:
-                locs[ext.location].append(ext)
-                chunks[ext.offset].append(ext)
-            else:
-                locs[ext.location] = [ext]
-                chunks[ext.offset] = [ext]
-
+        for alloc in allocs:
+            if alloc.location not in locs:
+                locs[alloc.location] = []
+            locs[alloc.location].append(alloc)
+        
         if not filepath:
             filepath = ex.name
-
+        
         # register download with Periscope
         self._viz_register(ex.name, ex.size, len(locs))
-
+        
         time_s = time.time()
         with open(filepath, "wb") as fh:
             with ThreadPoolExecutor(max_workers=THREADS) as executor:
-                for ext, data in zip(exts, executor.map(_download_chunk, chunks.values())):
-                    if data:
-                        self._viz_progress(ext.location, ext.size, ext.offset)
-                        fh.seek(ext.offset)
-                        fh.write(data)
+                for alloc, data in self._dl_generator(executor, schedule, ex):
+                    self._viz_progress(alloc.location, alloc.size, alloc.offset)
+                    fh.seek(alloc.offset)
+                    fh.write(data)
         
         return (time.time() - time_s, ex)
         
+    @info("Session")
+    def copy(self, href, duration=None, download_schedule=BaseDownloadSchedule(), upload_schedule=BaseUploadSchedule()):
+        self._validate_url(href)
+        ex = self._runtime.find(href)
+        allocs = ex.extents
+        futures = []
+        download_schedule.setSource(allocs)
+        upload_schedule.setSource(self._depots)
+        
+        time_s = time.time()
+        with ThreadPoolExecutor(max_workers=THREADS) as executor:
+            for alloc, data in self._dl_generator(executor, download_schedule, ex):
+                d = upload_schedule.get({"offset": alloc.offset, "size": alloc.size, "data": data})
+                futures.append(executor.submit(factory.makeAllocation, data, alloc.offset, duration, d,
+                                               **self._depots[d.endpoint].to_JSON()))
+                
+        for future in as_completed(futures):
+            alloc = future.result().getMetadata()
+            self._runtime.insert(alloc, commit=True)
+            alloc.parent = ex
+            ex.extents.append(alloc)
+            
+        time_e = time.time()
+        
+        if self._do_flush:
+            self._runtime.flush()
+        return (time_e - time_s, ex)
+        
+    @info("Session")
     def mkdir(self, path):
         def _traverse(ls, obj):
             if not ls:
@@ -231,10 +305,7 @@ class Session(object):
         
         return root
     
-    def setDistributionPlan(self, plan):
-        assert isinstance(plan, types.FunctionType), "Plan is not a function"
-        self._plan = plan
-        
+    @debug("Session")
     def _validate_url(self, url):
         regex = re.compile(
             r'^(?:http)s?://'
@@ -247,5 +318,8 @@ class Session(object):
         if not regex.match(url):
             raise ValueError("invalid url - {u}".format(u=url))
             
-    def _get_plan(self, depots):
-        return self._plan(depots)
+    def __enter__(self):
+        pass
+
+    def __exit__(self):
+        self._runtime.shutdown()

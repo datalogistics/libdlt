@@ -2,15 +2,18 @@
 from urllib import parse
 
 from libdlt.sessions import Session
+from libdlt.logging import debug, info
 
+@info("API")
 def download(href, filename, length=0, offset=0, timeout=180, **kwargs):
-    url = _validate_href(href)
-    session = Session(url.unis, depots=None, timeout=timeout, **kwargs)
-    return session.download(url.uid, filename, length, offset)
+    url, uid = _validate_url(href)
+    session = Session(url, depots=None, timeout=timeout, **kwargs)
+    return session.download(url, filename, length, offset)
 
+@info("API")
 def upload(filename, href, duration, depots, bs=5, copies=1, directory=None, timeout=180, **kwargs):
-    url = _validate_href(href, path=False)
-    session = Session(url.unis, depots=depots, bs=bs, timeout=timeout, **kwargs)
+    url, iud = _validate_url(href, path=False)
+    session = Session(url, depots=depots, bs=bs, timeout=timeout, **kwargs)
     session.copies = copies
     session.duration = duration
     
@@ -19,23 +22,25 @@ def upload(filename, href, duration, depots, bs=5, copies=1, directory=None, tim
         
     return session.upload(filename, copies, duration)
 
+@info("API")
 def mkdir(href, path):
-    url = _validate_href(href, path=False)
-    session = Session(url.unis, depots=None)
+    url, uid = _validate_url(href, path=False)
+    session = Session(url, depots={"Null": {}})
     return session.mkdir(path)
     
 
-def _validate_href(href, path=True):
+@debug("API")
+def _validate_url(href, path=True):
     url = parse.urlsplit(href)
-    if not url.scheme and url.netloc:
-        raise ValueError("download requires a full href to locate resource - got {0}".format(href))
+    if not url.scheme and not url.netloc:
+        raise ValueError("operation requires a full href to locate resource - got {0}".format(href))
     
     unis_url = "{s}://{l}".format(s=url.scheme, l=url.netloc)
-    if not url.path:
-        raise ValueError("download requires a id in href as {scheme}://{authority}/exnodes/{id}")
+    if not url.path and path:
+        raise ValueError("operation requires a id in href as {scheme}://{authority}/exnodes/{id}")
     
     path = url.path.split('/') if path else [None, None, None]
     if not len(path) == 3:
-        raise ValueError("Invalid path in download, expected /{0}/{1} - got {2}".format("{collection}", "{id}", url.path))
+        raise ValueError("Invalid path in operation, expected /{0}/{1} - got {2}".format("{collection}", "{id}", url.path))
     
-    return (unis_url, path[1], path[2])
+    return (unis_url, path[2])

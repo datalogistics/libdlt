@@ -16,10 +16,12 @@ import socket
 import logging
 
 from .settings import DEFAULT_PASSWORD, DEFAULT_TIMEOUT, DEFAULT_DURATION
+from libdlt.logging import debug, info
 from libdlt.protocol.ibp import flags, allocation
 from libdlt.protocol.ibp.flags import print_error
 
 class ProtocolService(object):
+    @debug("IBP.ProtocolService")
     def __init__(self):
         self._log = logging.getLogger()
 
@@ -37,7 +39,8 @@ class ProtocolService(object):
              non-volatile - the amount of data that cannot be removed
              max-duration - the maximum time in seconds data can be hosted on the depot without refreshing
     '''
-    def GetStatus(self, depot, **kwargs):
+    @info("IBP.ProtocolService")
+    def getStatus(self, depot, **kwargs):
     # Query the status of a Depot.
     
     # Generate request with the following form
@@ -80,7 +83,8 @@ class ProtocolService(object):
     @output:
            The response from the depot (varies by manage mode)
     '''
-    def Manage(self, alloc, **kwargs):
+    @info("IBP.ProtocolService")
+    def manage(self, alloc, **kwargs):
         cap_type    = 0
         reliability = flags.IBP_HARD
         timeout     = DEFAULT_TIMEOUT
@@ -136,7 +140,8 @@ class ProtocolService(object):
     '''
     See Manage, Probe is a decorator for manage.
     '''
-    def Probe(self, alloc, **kwargs):
+    @info("IBP.ProtocolService")
+    def probe(self, alloc, **kwargs):
         results = self.Manage(alloc, mode = flags.IBP_PROBE, **kwargs)
         if not results:
             return None
@@ -160,7 +165,8 @@ class ProtocolService(object):
     @output:
            An Allocation object
     '''
-    def Allocate(self, depot, offset, size, **kwargs):
+    @info("IBP.ProtocolService")
+    def allocate(self, depot, offset, size, **kwargs):
         # Generate destination Allocation and Capabilities using the form below
         # IBPv031[0] IBP_ALLOCATE[1] reliability cap_type duration size timeout
         reliability = flags.IBP_HARD
@@ -210,28 +216,28 @@ class ProtocolService(object):
     
     
     # Below are several shorthand versions of Allocate for hard and soft allocations of various types.
-    def AllocateSoftByteArray(self, depot, size, **kwargs):
+    def allocateSoftByteArray(self, depot, size, **kwargs):
         return self.Allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_BYTEARRAY, **kwargs)
 
-    def AllocateHardByteArray(self, depot, size, **kwargs):
+    def allocateHardByteArray(self, depot, size, **kwargs):
         return self.Allocate(depot, size, reliability = flags.IBP_HARD, type = flags.IBP_BYTEARRAY, **kwargs)
 
-    def AllocateSoftBuffer(self, depot, size, **kwargs):
+    def allocateSoftBuffer(self, depot, size, **kwargs):
         return self.Allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_BUFFER, **kwargs)
     
-    def AllocateHardBuffer(self, depot, size, **kwargs):
+    def allocateHardBuffer(self, depot, size, **kwargs):
         return self.Allocate(depot, size, reliability = flags.IBP_HARD, type = flags.IBP_BUFFER, **kwargs)
 
-    def AllocateSoftFifo(self, depot, size, **kwargs):
+    def allocateSoftFifo(self, depot, size, **kwargs):
         return self.Allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_FIFO, **kwargs)
 
-    def AllocateHardFifo(self, depot, size, **kwargs):
+    def allocateHardFifo(self, depot, size, **kwargs):
         return self.Allocate(depot, size, reliability = flags.IBP_HARD, type = flags.IBO_FIFO, **kwargs)
 
-    def AllocateSoftCirq(self, depot, size, **kwargs):
+    def allocateSoftCirq(self, depot, size, **kwargs):
         return self.Allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_CIRQ, **kwargs)
 
-    def AllocateHardCirq(self, depot, size, **kwargs):
+    def allocateHardCirq(self, depot, size, **kwargs):
         return self.Allocate(depot, size, reliability = flags.IBP_HARD, typ = flags.IBP_CIRQ, **kwargs)
 
 
@@ -247,7 +253,8 @@ class ProtocolService(object):
     @output:
            The duration of the allocation
     '''
-    def Store(self, alloc, data, size, **kwargs):
+    @info("IBP.ProtocolService")
+    def store(self, alloc, data, size, **kwargs):
         assert alloc.depot
         depot = alloc.depot
         timeout  = DEFAULT_TIMEOUT
@@ -288,7 +295,8 @@ class ProtocolService(object):
     @output:
            The duration of the allocation
     '''
-    def Send(self, source, destination, **kwargs):
+    @info("IBP.ProtocolService")
+    def send(self, source, destination, **kwargs):
     # Move an allocation from one {source} Depot to one {destination} depot
         timeout     = DEFAULT_TIMEOUT
         duration    = DEFAULT_DURATION
@@ -340,7 +348,8 @@ class ProtocolService(object):
     @output:
            The data stored in the allocation
     '''
-    def Load(self, alloc, **kwargs):
+    @info("IBP.ProtocolService")
+    def load(self, alloc, **kwargs):
         assert alloc.depot
         depot = alloc.depot
         timeout = DEFAULT_TIMEOUT
@@ -375,6 +384,7 @@ class ProtocolService(object):
             return result["data"]
 
 
+    @debug("IBP.ProtocolService")
     def _receive_data(self, depot, command, size):
         port = int(depot.port)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -414,6 +424,7 @@ class ProtocolService(object):
         return { "headers": header, "data": data }
 
 
+    @debug("IBP.ProtocolService")
     def _dispatch_data(self, depot, command, data):
         port = int(depot.port)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -448,6 +459,7 @@ class ProtocolService(object):
         return response
         
 
+    @debug("IBP.ProtocolService")
     def _dispatch_command(self, depot, command):
         # Create socket and configure with host and port
         port = int(depot.port)

@@ -11,27 +11,29 @@ that can be used to access data on an IBP
 depot.
 '''
 
-import logging
+
 from datetime import datetime
 
 from unis.models import Lifetime, schemaLoader
 from libdlt.depot import Depot
+from libdlt.logging import getLogger, debug
 
 IBP_EXTENT_URI = "http://unis.crest.iu.edu/schema/exnode/ext/1/ibp#"
 
 IBPExtent = schemaLoader.get_class(IBP_EXTENT_URI)
 
 class Allocation(IBPExtent):
+    @debug("IBP.Allocation")
     def initialize(self, data={}):
         super(Allocation, self).initialize(data)
-        self._log       = logging.getLogger()
+        self.log       = getLogger()
         self.timestamp  = 0
         self.depot      = Depot(self.location) if hasattr(self, "location") else None
         self.lifetime   = Lifetime()
         self.readcap    = None
         self.writecap   = None
         self.managecap  = None
-
+        
         if data:
             self.SetReadCapability(self.mapping.read)
             self.SetWriteCapability(self.mapping.write)
@@ -39,10 +41,10 @@ class Allocation(IBPExtent):
         
     def getStartTime(self):
         return datetime.strptime(self.lifetimes.start, "%Y-%m-%d %H:%M:%S")
-
+        
     def getEndTime(self):
         return datetime.strptime(self.lifetimes.start, "%Y-%m-%d %H:%M:%S")
-
+        
     def setStartTime(self, dt):
         self.lifetime.start = dt.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -51,10 +53,10 @@ class Allocation(IBPExtent):
         
     def GetReadCapability(self):
         return self.readcap
-
+        
     def GetWriteCapability(self):
         return self.writecap
-
+        
     def GetManageCapability(self):
         return self.managecap
         
@@ -62,7 +64,7 @@ class Allocation(IBPExtent):
         try:
             tmpCap = Capability(read)
         except ValueError as exp:
-            self._log.warn("{func:>20}| Unable to create capability - {exp}".format(func = "SetReadCapability", exp = exp))
+            self.log.warn("{func:>20}| Unable to create capability - {exp}".format(func = "SetReadCapability", exp = exp))
             return False
         self.mapping.read = str(tmpCap)
         self.readcap = tmpCap
@@ -71,7 +73,7 @@ class Allocation(IBPExtent):
         try:
             tmpCap = Capability(write)
         except ValueError as exp:
-            self._log.warn("{func:>20}| Unable to create capability - {exp}".format(func = "SetWriteCapability", exp = exp))
+            self.log.warn("{func:>20}| Unable to create capability - {exp}".format(func = "SetWriteCapability", exp = exp))
             return False
         self.mapping.write = str(tmpCap)
         self.writecap = tmpCap
@@ -80,7 +82,7 @@ class Allocation(IBPExtent):
         try:
             tmpCap = Capability(manage)
         except ValueError as exp:
-            self._log.warn("{func:>20}| Unable to create capability - {exp}".format(func = "SetManageCapability", exp = exp))
+            self.log.warn("{func:>20}| Unable to create capability - {exp}".format(func = "SetManageCapability", exp = exp))
             return False
         self.mapping.manage = str(tmpCap)
         self.managecap = tmpCap
