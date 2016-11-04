@@ -1,13 +1,14 @@
+import concurrent.futures
 import getpass
 import os
 import re
 import time
 import types
 import uuid
-from uritools import urisplit
 
 from itertools import cycle
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from uritools import urisplit
 from socketIO_client import SocketIO
 
 from libdlt.util import util
@@ -135,8 +136,8 @@ class Session(object):
         with open(filepath, "rb") as fh:
             for offset, size, data in _chunked(fh, self._blocksize, ex.size):
                 for n in range(copies):
-                    d = schedule.get({"offset": offset, "size": size, "data": data})
-                    futures.append(executor.submit(factory.makeAllocation, data, offset, duration, d,
+                    d = Depot(schedule.get({"offset": offset, "size": size, "data": data}))
+                    futures.append(executor.submit(factory.makeAllocation, data, offset, d, duration=duration,
                                                    **self._depots[d.endpoint].to_JSON()))
                     
         for future in as_completed(futures):
@@ -178,7 +179,7 @@ class Session(object):
             pending.append((current, ex.size))
             
         # Wait for the first result
-        done, in_flight = futures.wait(in_flight, return_when=futures.FIRST_COMPLETED)
+        done, in_flight = concurrent.futures.wait(in_flight, return_when=concurrent.futures.FIRST_COMPLETED)
         while done:
             in_flight = list(in_flight)
             for response in done:
@@ -198,7 +199,7 @@ class Session(object):
                 if end < segment[1]:
                     pending.append((end, segment[1]))
                     in_flight.append(executor.submit(_download_chunk, alloc))
-                done, in_flight = futures.wait(in_flight, return_when=futures.FIRST_COMPLETED)
+            done, in_flight = concurrent.futures.wait(in_flight, return_when=concurrent.futures.FIRST_COMPLETED)
     
     @info("Session")
     def download(self, href, filepath, length=0, offset=0, schedule=BaseDownloadSchedule()):

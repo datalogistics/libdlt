@@ -35,5 +35,5 @@ def buildAllocation(json):
     return SCHEMA_MAP[schema].buildAllocation(json)
 
 @info("factory")
-def makeAllocation(offset, data, depot, **kwds):
-    return PROTOCOL_MAP[depot.scheme].makeAllocation(offset, data, depot, **kwds)
+def makeAllocation(data, offset, depot, **kwds):
+    return PROTOCOL_MAP[depot.scheme].makeAllocation(data, offset, depot, **kwds)

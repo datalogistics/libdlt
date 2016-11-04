@@ -1,16 +1,19 @@
 import logging
+import os
+
+NAME = "libdlt"
 
 def setLevel(level):
     getLogger().setLevel(level)
 def getLogger():
     class ColourFormatter(logging.Formatter):
         def __init__(self, fmt, datefmt=None):
-            self.values = { 
-                logging.CRITICAL: {"name": "C", "color": "\033[1;31m"},
-                logging.ERROR: {"name": "E", "color": "\033[0;31m"},
-                logging.WARNING: {"name": "W", "color": "\033[0;33m"},
-                logging.INFO: {"name": "I", "color": "\033[0;32m"},
-                logging.DEBUG: {"name": "D", "color": "\033[0;34m"}
+            self.colours = { 
+                logging.CRITICAL: "\033[1;31m",
+                logging.ERROR: "\033[0;31m",
+                logging.WARNING: "\033[0;33m",
+                logging.INFO: "\033[0;32m",
+                logging.DEBUG: "\033[0;34m"
             }
             super(ColourFormatter, self).__init__(fmt, datefmt, '{')
         def format(self, record):
@@ -21,15 +24,16 @@ def getLogger():
                 caller = ""
             
             record.args = record.args[:-1]
-            fmt = old_fmt.format(levelname=self.values[record.levelno]["name"],
-                                 color=self.values[record.levelno]["color"],
+            fmt = old_fmt.format(levelname=record.levelname[:1],
+                                 color=self.colours[record.levelno],
                                  reset="\033[0m",
                                  caller=caller)
             self._style._fmt = fmt
             result = logging.Formatter.format(self, record)
             self._style._fmt = old_fmt
             return result
-    log = logging.getLogger("libdlt")
+    
+    log = logging.getLogger(NAME)
     if not log.hasHandlers():
         cout = logging.StreamHandler()
         cout.setFormatter(ColourFormatter("{color}[{levelname} {{asctime}}{caller}]{reset} {{message}}"))
@@ -43,29 +47,43 @@ class _log(object):
         
     def __call__(self, f):
         def wrapper(*args, **kwargs):
-            args_str = ""
-            kwargs_str = ""
+            lens = []
+            tmpargs = []
+            tmpkwargs = []
+            s = 0
             for arg in args:
                 if arg == "":
                     tmpStr = "\"\", "
                 else:
-                    tmpStr = "{}, ".format(arg)
-                    if len(tmpStr) > 100:
-                        tmpStr = "..., "
-                args_str += tmpStr
+                    tmpStr = "{}".format(arg)
+                lens.append((len(tmpStr), tmpargs, len(tmpargs)))
+                tmpargs.append(tmpStr)
+                s += len(tmpStr)
             for k, arg in kwargs.items():
                 if arg == "":
                     tmpStr = "\"\", "
                 else:
-                    tmpStr = "{}: {}, ".format(k, arg)
-                    if len(tmpStr) > 100:
-                        tmpStr = "..., "
-                    kwargs_str += tmpStr
+                    tmpStr = "{}".format(arg)
+                lens.append((len(tmpStr) + len(k), tmpkwargs, len(tmpkwargs)))
+                tmpkwargs.append((k, tmpStr))
+                s += len(tmpStr)
+                
+            lens = sorted(lens, key=lambda v: v[0])
+            try:
+                size = os.get_terminal_size().columns - 40
+            except OSError:
+                size = 10000000
+            while s > max(0, size):
+                l, ls, i = lens.pop()
+                ls[i] = "..." if isinstance(ls[i], str) else (ls[0], "...")
+                s -= l
+            args_str = ", ".join(tmpargs)
+            kwargs_str = ", ".join(["{}: {}".format(k, v) for k, v in tmpkwargs])
             base_str = "{}{}{}".format("args=[{}]" if args_str else "{}", 
                                        ", " if args_str and kwargs_str else "", 
                                        "kwargs={{{}}}" if kwargs_str else "{}")
             base_str = base_str or "No arguments passed{}{}"
-            self.op(base_str.format(args_str[:-2], kwargs_str[:-2]), "{}.{}".format(self.cls, f.__name__))
+            self.op(base_str.format(args_str, kwargs_str), "{}.{}".format(self.cls, f.__name__))
             return f(*args, **kwargs)
             
         return wrapper
