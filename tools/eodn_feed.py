@@ -8,7 +8,7 @@ import subprocess
 import logging
 import signal
 
-import libdlt.util.common as common
+from libdlt.util import common as common
 from libdlt.util.common import ExnodePUBSUBQuery, parseArgs
 
 SHUTDOWN = False
