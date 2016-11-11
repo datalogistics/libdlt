@@ -125,7 +125,7 @@ def parseArgs(desc="EODN-IDMS File Acquisition", ptype=PARSER_TYPE_DOWNLOAD):
     
     if (ptype == PARSER_TYPE_DOWNLOAD):
         parser.add_argument('-H', '--url', type=str,
-                            default="http://unis.crest.iu.edu:8890",
+                            default="http://dev.crest.iu.edu:8888",  #"http://unis.crest.iu.edu:8890",
                             help='The eXnode service URL (http:<host>:<port>)')
         parser.add_argument('-R', '--recursive', action='store_true',
                             help='Recursively get all subdirectory contents')
@@ -133,7 +133,7 @@ def parseArgs(desc="EODN-IDMS File Acquisition", ptype=PARSER_TYPE_DOWNLOAD):
                             help='eXnode path to download')
     elif ptype == PARSER_TYPE_PUBSUB:
         parser.add_argument('-H', '--url', type=str,
-                            default="ws://unis.crest.iu.edu:8890",
+                            default="ws://dev.crest.iu.edu:8888", #"ws://unis.crest.iu.edu:8890",
                             help='The eXnode service websocket endpoint (ws://<host>:<port>)')
     
     args = parser.parse_args()
