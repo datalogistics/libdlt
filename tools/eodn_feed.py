@@ -7,10 +7,12 @@ import json
 import subprocess
 import logging
 import signal
+import libdlt
 
-import libdlt.util.common as common
+from libdlt.util import common as common
 from libdlt.util.common import ExnodePUBSUBQuery, parseArgs
 
+DEPOTS = '{"ceph://um-mon01.osris.org": {"clustername": "osiris","config": "/etc/ceph/osiris.conf","pool": "dlt","crush_map": null}, "ibp://ibp2.crest.iu.edu:6714": {"duration": 2592000}}'
 SHUTDOWN = False
 
 def signal_handler(signal, frame):
@@ -47,18 +49,27 @@ class Listener(object):
         
         if not self._list:
             try:
-                args = ['lors_download', '-t', '10', '-b', '5m', '-f', href]
-                if self._viz:
-                    args.append('-X')
-                    args.append(self._viz)
-                p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                out, err = p.communicate()
-                if self._verbose:
-                    print (err)
-                elif "ERROR" in err:
-                    print (err)
+                depots = None
+                block_size = '5m'
+                host = "http://dev.crest.iu.edu:8888"
+
+                if DEPOTS:
+                    try:
+                        depots = json.loads(DEPOTS)
+                    except Exception as e:
+                        print ("ERROR: Could not read depots: {}".format(e))
+                        exit(1)
+
+                sess = libdlt.Session(host, bs=block_size, depots=depots,
+                                                        **{"viz_url": self._viz})
+                xfer = sess.download
+        
+                diff, res = xfer(href, None)
+                print ("{0} ({1} {2:.2f} MB/s) {3}".format(res.name, res.size,
+                                                           res.size/1e6/diff,
+                                                           res.selfRef))
             except Exception as e:
-                logging.error("Failed lors_download for %s: %s " % (name, e))
+                logging.error("Failed libdlt download for %s: %s " % (name, e))
             
     def on_error(self, ws, error):
         logging.warn("Websocket error - {exp}".format(exp = error))

@@ -48,16 +48,17 @@ class BaseDownloadSchedule(AbstractSchedule):
             return self._ls[offset].pop()
         else:
             result = None
-            for k, chunk in self._ls:
+            for k, chunk in self._ls.items():
                 if k < offset:
                     for ext in chunk:
                         if ext.size + ext.offset > offset:
                             result = ext
                             break
-                    if ext:
-                        self._ls[k].remove(ext)
+                    if result:
+                        self._ls[k].remove(result)
                         break
             
-            if not ext:
-                raise IndexError("No more allocations fulfill request: offset ~ {}".format(offset))
-            return ext
+            if not result:
+                print ("No more allocations fulfill request: offset ~ {}".format(offset))
+                #raise IndexError("No more allocations fulfill request: offset ~ {}".format(offset))
+            return result

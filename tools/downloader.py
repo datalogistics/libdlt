@@ -10,7 +10,7 @@ import logging
 import subprocess
 from pprint import pprint
 
-import libdlt.util.common as common
+from libdlt.util import common as common
 from libdlt.util.common import ExnodeRESTQuery,parseArgs,unis_get
 
 def signal_handler(signal, frame):

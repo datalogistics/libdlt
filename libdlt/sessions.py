@@ -172,8 +172,9 @@ class Session(object):
         # Begin first THREADS requests
         for _ in range(THREADS):
             alloc = schedule.get({ "offset": current })
-            in_flight.append(executor.submit(_download_chunk, alloc))
-            current += alloc.size
+            if alloc:
+                in_flight.append(executor.submit(_download_chunk, alloc))
+                current += alloc.size
             
         # If there is remaining file to download
         if current < ex.size:
