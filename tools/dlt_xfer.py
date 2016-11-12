@@ -39,11 +39,16 @@ def main():
                         help='Output file')
     parser.add_argument('-V', '--visualize', type=str, default=None,
                         help='Periscope URL for visualization')
+    parser.add_argument('-D', '--debug', action='store_true',
+                        help='Include verbose logging output')
 
     args = parser.parse_args()
     bs = args.bs
     df = args.depot_file
-
+    
+    if args.debug:
+        libdlt.logging.setLevel(10)
+    
     depots = None
     if df:
         try:

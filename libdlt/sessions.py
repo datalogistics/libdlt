@@ -30,7 +30,7 @@ class Session(object):
     @debug("Session")
     def __init__(self, url, depots, bs=BLOCKSIZE, timeout=TIMEOUT, **kwargs):
         self._validate_url(url)
-        self._runtime = Runtime(url, defer_update=True, subscribe=False)
+        self._runtime = Runtime(url, defer_update=True, auto_sync=False, subscribe=False)
         self._runtime.exnodes.createIndex("name")
         self._do_flush = True
         self._blocksize = bs if isinstance(bs, int) else int(util.human2bytes(bs))
@@ -54,7 +54,7 @@ class Session(object):
                 self._depots[depot.selfRef] = depot
         elif isinstance(depots, str):
             self._validate_url(depots)
-            with Runtime(depots) as rt:
+            with Runtime(depots, auto_sync=False, subscribe=False) as rt:
                 for depot in rt.services.where(lambda x: x.serviceType in DEPOT_TYPES):
                     self._depots[depot.selfRef] = depot
         elif isinstance(depots, dict):
@@ -245,7 +245,7 @@ class Session(object):
         time_s = time.time()
         with ThreadPoolExecutor(max_workers=THREADS) as executor:
             for alloc, data in self._dl_generator(executor, download_schedule, ex):
-                d = upload_schedule.get({"offset": alloc.offset, "size": alloc.size, "data": data})
+                d = Depot(upload_schedule.get({"offset": alloc.offset, "size": alloc.size, "data": data}))
                 futures.append(executor.submit(factory.makeAllocation, data, alloc.offset, duration, d,
                                                **self._depots[d.endpoint].to_JSON()))
                 

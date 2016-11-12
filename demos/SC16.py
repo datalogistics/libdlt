@@ -1,4 +1,5 @@
 import argparse
+import json
 
 from libdlt.schedule import AbstractSchedule, BaseDownloadSchedule
 from libdlt import Session
@@ -71,6 +72,8 @@ class UploadSchedule(AbstractSchedule):
 
 def main():
     parser = argparse.ArgumentParser(description="DLT File Transfer Tool")
+    parser.add_argument('files', metavar='FILES', type=str, nargs='+',
+                        help='Files to copy')
     parser.add_argument('-b', '--bs', type=str, default='5m',
                         help='Block size')
     parser.add_argument('-i', '--input-depot-file', type=str, default='.indepots',
@@ -83,6 +86,8 @@ def main():
                         help='Set policy to fallback mode')
     parser.add_argument('-t', '--threshold', type=str, default='5m',
                         help='Threshold at which download switches to fallback')
+    parser.add_argument('-d', '--debug', action='store_true',
+                        help='Include verbose debug output')
     
     args = parser.parse_args()
     bs = args.bs
@@ -91,7 +96,11 @@ def main():
     
     in_depots = None
     out_depots = None
-    depots = []
+    depots = {}
+    if args.debug:
+        import libdlt
+        libdlt.logging.setLevel(10)
+        
     if idf:
         try:
             f = open(idf, "r")
@@ -106,18 +115,25 @@ def main():
             out_depots = json.loads(f.read())
         except Exception as e:
             print("ERROR: Could not read depot file: {}".format(e))
-    depots.extend(in_depots)
-    depots.extend(out_depots)
-    url = "http://dev.crest.iu.edu"
+
+    for k,v in in_depots.items():
+        depots[k] = v
+    for k,v in out_depots.items():
+        depots[k] = v
+    url = "http://dev.crest.iu.edu:8888"
     threshold = int(util.human2bytes(args.threshold))
     md_id = ""
-    sess = Session(url, depots)
-    up_sched = UploadSchedule(out_depots)
+    up_sched = UploadSchedule(out_depots.values()[0])
+    print(up_sched._dest)
     if args.fallback:
         down_sched = DownloadSchedule(url, threshold, in_depots[0], in_depots[1], md_id)
     else:
         down_sched = BaseDownloadSchedule()
-    sess.copy(resource, upload_schedule=up_sched, download_schedul=down_sched)
+
+
+    sess = Session(url, depots)
+    for f in args.files:
+        sess.copy(f, upload_schedule=up_sched, download_schedule=down_sched)
 
 
 if __name__ == "__main__":
