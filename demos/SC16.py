@@ -47,7 +47,7 @@ class FallbackDownloadSchedule(AbstractSchedule):
         for offset, alloc in chunks:
             if alloc.location == self._fallback:
                 fallback = alloc
-            else if alloc.location == self._primary:
+            elif alloc.location == self._primary:
                 primary = alloc
                         
         if self._data.last > self._threshold:
@@ -81,7 +81,7 @@ def main():
                         help='Periscope URL for visualization')
     parser.add_argument('-f', '--fallback', action='store_true',
                         help='Set policy to fallback mode')
-    parser.add_argument('-t', '--threshold', type=str, default='5m'
+    parser.add_argument('-t', '--threshold', type=str, default='5m',
                         help='Threshold at which download switches to fallback')
     
     args = parser.parse_args()
@@ -109,7 +109,7 @@ def main():
     depots.extend(in_depots)
     depots.extend(out_depots)
     url = "http://dev.crest.iu.edu"
-    threshold = int(util.human2bytes(args.threshold)
+    threshold = int(util.human2bytes(args.threshold))
     md_id = ""
     sess = Session(url, depots)
     up_sched = UploadSchedule(out_depots)
@@ -118,3 +118,7 @@ def main():
     else:
         down_sched = BaseDownloadSchedule()
     sess.copy(resource, upload_schedule=up_sched, download_schedul=down_sched)
+
+
+if __name__ == "__main__":
+    main()
