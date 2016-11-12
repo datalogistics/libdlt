@@ -30,7 +30,8 @@ class Session(object):
     @debug("Session")
     def __init__(self, url, depots, bs=BLOCKSIZE, timeout=TIMEOUT, **kwargs):
         self._validate_url(url)
-        self._runtime = Runtime(url, defer_update=True)
+        self._runtime = Runtime(url, defer_update=True, subscribe=False)
+        self._runtime.exnodes.createIndex("name")
         self._do_flush = True
         self._blocksize = bs if isinstance(bs, int) else int(util.human2bytes(bs))
         self._timeout = timeout
@@ -198,7 +199,7 @@ class Session(object):
                 end = alloc.offset + alloc.size
                 if end < segment[1]:
                     pending.append((end, segment[1]))
-                    in_flight.append(executor.submit(_download_chunk, alloc))
+                in_flight.append(executor.submit(_download_chunk, alloc))
             done, in_flight = concurrent.futures.wait(in_flight, return_when=concurrent.futures.FIRST_COMPLETED)
     
     @info("Session")

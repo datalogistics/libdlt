@@ -1,6 +1,8 @@
 import abc
 from itertools import cycle
 
+from libdlt.logging import info
+
 class AbstractSchedule(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def setSource(self, source):
@@ -30,6 +32,7 @@ class BaseUploadSchedule(AbstractSchedule):
         return next(self._ls)
 
 class BaseDownloadSchedule(AbstractSchedule):
+    @info("BaseDownloadSchedule")
     def setSource(self, source):
         chunks = {}
         for ext in source:
@@ -38,6 +41,7 @@ class BaseDownloadSchedule(AbstractSchedule):
             chunks[ext.offset].append(ext)
         self._ls = chunks
         
+    @info("BaseDownloadSchedule")
     def get(self, context={}):
         offset = context["offset"]
         if offset in self._ls and self._ls[offset]:
