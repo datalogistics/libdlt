@@ -157,7 +157,7 @@ class Session(object):
     
     @info("Session")
     def download(self, href, filepath, length=0, offset=0, schedule=BaseDownloadSchedule()):
-        def offset(size):
+        def offsets(size):
             i = 0
             while i < size:
                 ext = schedule.get({"offset": i})
@@ -209,7 +209,7 @@ class Session(object):
         upload_schedule.setSource(self._depots)
         
         time_s = time.time()
-        with ThreadPoolExecutor(max_workers=self._threads) as executor:
+        #with ThreadPoolExecutor(max_workers=self._threads) as executor:
             #for alloc, data in self._dl_generator(executor, download_schedule, ex):
             #    d = Depot(upload_schedule.get({"offset": alloc.offset, "size": alloc.size, "data": data}))
             #    futures.append(executor.submit(factory.makeAllocation, data, alloc.offset, d, duration=duration,
