@@ -201,22 +201,31 @@ class Session(object):
         
     @info("Session")
     def copy(self, href, duration=None, download_schedule=BaseDownloadSchedule(), upload_schedule=BaseUploadSchedule()):
+        def offsets(size):
+            i = 0
+            while i < size:
+                ext = download_schedule.get({"offset": i})
+                yield ext
+                i += ext.size
+                
         self._validate_url(href)
         ex = self._runtime.find(href)
         allocs = ex.extents
         futures = []
+        self._viz_register(ex.name, ex.size, len(self._depots))
         download_schedule.setSource(allocs)
         upload_schedule.setSource(self._depots)
         
         time_s = time.time()
-        #with ThreadPoolExecutor(max_workers=self._threads) as executor:
-            #for alloc, data in self._dl_generator(executor, download_schedule, ex):
-            #    d = Depot(upload_schedule.get({"offset": alloc.offset, "size": alloc.size, "data": data}))
-            #    futures.append(executor.submit(factory.makeAllocation, data, alloc.offset, d, duration=duration,
-            #**self._depots[d.endpoint].to_JSON()))
+        with ThreadPoolExecutor(max_workers=self._threads) as executor:
+            for alloc, data in executor.map(_download_chunk, offsets(ex.size)):
+                d = Depot(upload_schedule.get({"offset": alloc.offset, "size": alloc.size, "data": data}))
+                futures.append(executor.submit(factory.makeAllocation, data, alloc.offset, d, duration=duration,
+                                               **self._depots[d.endpoint].to_JSON()))
                 
         for future in as_completed(futures):
             alloc = future.result().getMetadata()
+            self._viz_progress(alloc.location, alloc.size, alloc.offset)
             self._runtime.insert(alloc, commit=True)
             alloc.parent = ex
             ex.extents.append(alloc)
