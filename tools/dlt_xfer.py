@@ -41,6 +41,8 @@ def main():
                         help='Periscope URL for visualization')
     parser.add_argument('-D', '--debug', action='store_true',
                         help='Include verbose logging output')
+    parser.add_argument('-t', '--threads', type=int, default=5,
+                        help='Number of threads for operation')
 
     args = parser.parse_args()
     bs = args.bs
@@ -58,7 +60,7 @@ def main():
             print ("ERROR: Could not read depot file: {}".format(e))
             exit(1)
 
-    sess = libdlt.Session(args.host, bs=bs, depots=depots,
+    sess = libdlt.Session(args.host, bs=bs, depots=depots, threads=args.threads,
                           **{"viz_url": args.visualize})
     xfer = sess.upload if args.upload else sess.download
         

@@ -16,37 +16,8 @@ def getLogger():
                 logging.DEBUG: "\033[0;34m"
             }
             super(ColourFormatter, self).__init__(fmt, datefmt, '{')
-        def format(self, record):
-            old_fmt = self._style._fmt
-            try:
-                caller = " {}".format(record.args[0])
-            except IndexError:
-                caller = ""
-            
-            record.args = record.args[:-1]
-            fmt = old_fmt.format(levelname=record.levelname[:1],
-                                 color=self.colours[record.levelno],
-                                 reset="\033[0m",
-                                 caller=caller)
-            self._style._fmt = fmt
-            result = logging.Formatter.format(self, record)
-            self._style._fmt = old_fmt
-            return result
-    
-    log = logging.getLogger(NAME)
-    if not log.hasHandlers():
-        cout = logging.StreamHandler()
-        cout.setFormatter(ColourFormatter("{color}[{levelname} {{asctime}}{caller}]{reset} {{message}}"))
-        log.addHandler(cout)
-    return log
-
-class _log(object):
-    op = getLogger().log
-    def __init__(self, cls):
-        self.cls = cls
         
-    def __call__(self, f):
-        def wrapper(*args, **kwargs):
+        def _buildStr(self, *args, **kwargs):
             lens = []
             tmpargs = []
             tmpkwargs = []
@@ -83,7 +54,43 @@ class _log(object):
                                        ", " if args_str and kwargs_str else "", 
                                        "kwargs={{{}}}" if kwargs_str else "{}")
             base_str = base_str or "No arguments passed{}{}"
-            self.op(base_str.format(args_str, kwargs_str), "{}.{}".format(self.cls, f.__name__))
+            return base_str.format(args_str, kwargs_str)
+            
+        def format(self, record):
+            old_fmt = self._style._fmt
+            try:
+                caller = " {}".format(record.args[0])
+            except IndexError:
+                caller = ""
+            
+            args, kwargs = record.args[1]
+            record.args = []
+            record.msg = self._buildStr(*args, **kwargs)
+            fmt = old_fmt.format(levelname=record.levelname[:1],
+                                 color=self.colours[record.levelno],
+                                 reset="\033[0m",
+                                 caller=caller)
+            self._style._fmt = fmt
+            result = logging.Formatter.format(self, record)
+            self._style._fmt = old_fmt
+            return result
+    
+    log = logging.getLogger(NAME)
+    if not log.hasHandlers():
+        cout = logging.StreamHandler()
+        cout.setFormatter(ColourFormatter("{color}[{levelname} {{asctime}}{caller}]{reset} {{message}}"))
+        log.addHandler(cout)
+    return log
+
+class _log(object):
+    op = getLogger().log
+    def __init__(self, cls):
+        self.cls = cls
+        
+    def __call__(self, f):
+        def wrapper(*args, **kwargs):
+            compressed = (args, kwargs)
+            self.op("", "{}.{}".format(self.cls, f.__name__), compressed)
             return f(*args, **kwargs)
             
         return wrapper

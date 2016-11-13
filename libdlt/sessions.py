@@ -28,7 +28,7 @@ class Session(object):
     }
     
     @debug("Session")
-    def __init__(self, url, depots, bs=BLOCKSIZE, timeout=TIMEOUT, **kwargs):
+    def __init__(self, url, depots, bs=BLOCKSIZE, timeout=TIMEOUT, threads=THREADS, **kwargs):
         self._validate_url(url)
         self._runtime = Runtime(url, defer_update=True, auto_sync=False, subscribe=False)
         self._runtime.exnodes.createIndex("name")
@@ -37,6 +37,7 @@ class Session(object):
         self._timeout = timeout
         self._plan = cycle
         self._depots = {}
+        self._threads = threads
         self._viz = kwargs.get("viz_url", None)
         self._id = uuid.uuid4().hex  # use if we're matching a webGUI session
         self.log = getLogger()
@@ -129,7 +130,7 @@ class Session(object):
         # register download with Periscope
         self._viz_register(ex.name, ex.size, len(self._depots))
         
-        executor = ThreadPoolExecutor(max_workers=THREADS)
+        executor = ThreadPoolExecutor(max_workers=self._threads)
         futures = []
         time_s = time.time()
         
@@ -155,7 +156,13 @@ class Session(object):
         return (time_e - time_s, ex)
     
     @info("Session")
-    def _dl_generator(self, executor, schedule, ex):
+    def download(self, href, filepath, length=0, offset=0, schedule=BaseDownloadSchedule()):
+        def offset(size):
+            i = 0
+            while i < size:
+                ext = schedule.get({"offset": i})
+                yield ext
+                i += ext.size
         def _download_chunk(ext):
             try:
                 alloc = factory.buildAllocation(ext)
@@ -164,47 +171,6 @@ class Session(object):
             except Exception as exp:
                 print ("READ Error: {}".format(exp))
             return ext, False
-        
-        in_flight = []
-        pending = []
-        current = 0
-        
-        # Begin first THREADS requests
-        for _ in range(THREADS):
-            alloc = schedule.get({ "offset": current })
-            if alloc:
-                in_flight.append(executor.submit(_download_chunk, alloc))
-                current += alloc.size
-            
-        # If there is remaining file to download
-        if current < ex.size:
-            pending.append((current, ex.size))
-            
-        # Wait for the first result
-        done, in_flight = concurrent.futures.wait(in_flight, return_when=concurrent.futures.FIRST_COMPLETED)
-        while done:
-            in_flight = list(in_flight)
-            for response in done:
-                alloc, data = response.result()
-                
-                # If download was successful
-                if data:
-                    yield (alloc, data)
-                else:
-                    # Return the request to the pending list
-                    pending.append((alloc.offset, alloc.size + alloc.offset))
-                        
-            if pending:
-                segment = pending.pop()
-                alloc = schedule.get({ "offset": segment[0] })
-                end = alloc.offset + alloc.size
-                if end < segment[1]:
-                    pending.append((end, segment[1]))
-                in_flight.append(executor.submit(_download_chunk, alloc))
-            done, in_flight = concurrent.futures.wait(in_flight, return_when=concurrent.futures.FIRST_COMPLETED)
-    
-    @info("Session")
-    def download(self, href, filepath, length=0, offset=0, schedule=BaseDownloadSchedule()):
         self._validate_url(href)
         ex = self._runtime.find(href)
         allocs = ex.extents
@@ -225,8 +191,8 @@ class Session(object):
         
         time_s = time.time()
         with open(filepath, "wb") as fh:
-            with ThreadPoolExecutor(max_workers=THREADS) as executor:
-                for alloc, data in self._dl_generator(executor, schedule, ex):
+            with ThreadPoolExecutor(max_workers=self._threads) as executor:
+                for alloc, data in executor.map(_download_chunk, offsets(ex.size)):
                     self._viz_progress(alloc.location, alloc.size, alloc.offset)
                     fh.seek(alloc.offset)
                     fh.write(data)
@@ -243,11 +209,11 @@ class Session(object):
         upload_schedule.setSource(self._depots)
         
         time_s = time.time()
-        with ThreadPoolExecutor(max_workers=THREADS) as executor:
-            for alloc, data in self._dl_generator(executor, download_schedule, ex):
-                d = Depot(upload_schedule.get({"offset": alloc.offset, "size": alloc.size, "data": data}))
-                futures.append(executor.submit(factory.makeAllocation, data, alloc.offset, duration, d,
-                                               **self._depots[d.endpoint].to_JSON()))
+        with ThreadPoolExecutor(max_workers=self._threads) as executor:
+            #for alloc, data in self._dl_generator(executor, download_schedule, ex):
+            #    d = Depot(upload_schedule.get({"offset": alloc.offset, "size": alloc.size, "data": data}))
+            #    futures.append(executor.submit(factory.makeAllocation, data, alloc.offset, d, duration=duration,
+            #**self._depots[d.endpoint].to_JSON()))
                 
         for future in as_completed(futures):
             alloc = future.result().getMetadata()
