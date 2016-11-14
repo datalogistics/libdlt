@@ -27,10 +27,15 @@ class Session(object):
         'p' : 'peri_download_pushdata'
     }
     
+    __static_ips = {
+        '149.165.232.115': 'mon01.crest.iu.edu',
+        '10.10.1.1': 'mon1.apt.emulab.net'
+    }
+    
     @debug("Session")
     def __init__(self, url, depots, bs=BLOCKSIZE, timeout=TIMEOUT, threads=THREADS, **kwargs):
         self._validate_url(url)
-        self._runtime = Runtime(url, defer_update=True, auto_sync=False, subscribe=False)
+        self._runtime = Runtime(url, defer_update=True, auto_sync=False, subscribe=False, inline=True)
         self._runtime.exnodes.createIndex("name")
         self._do_flush = True
         self._blocksize = bs if isinstance(bs, int) else int(util.human2bytes(bs))
@@ -39,7 +44,6 @@ class Session(object):
         self._depots = {}
         self._threads = threads
         self._viz = kwargs.get("viz_url", None)
-        self._id = uuid.uuid4().hex  # use if we're matching a webGUI session
         self.log = getLogger()
         
         if not depots:
@@ -64,16 +68,17 @@ class Session(object):
     def _viz_register(self, name, size, conns):
         if self._viz:
             try:
+                uid = uuid.uuid4().hex
                 o = urisplit(self._viz)
                 sock = SocketIO(o.host, o.port)
-                msg = {"sessionId": self._id,
+                msg = {"sessionId": uid,
                        "filename": name,
                        "size": size,
                        "connections": conns,
                        "timestamp": time.time()*1e3
                    }
                 sock.emit(self.__WS_MTYPE['r'], msg)
-                return sock
+                return uid, sock
             except Exception as e:
                 self.log.warn("Session.__init__: websocket connection failed: {}".format(e))
         return None
@@ -83,13 +88,16 @@ class Session(object):
         if self._viz:
             try:
                 d = Depot(depot)
-                msg = {"sessionId": self._id,
-                       "host":  d.host,
+                host = str(d.host)
+                if host in self.__static_ips:
+                    host = self.__static_ips[host]
+                msg = {"sessionId": sock[0],
+                       "host":  host,
                        "length": size,
                        "offset": offset,
                        "timestamp": time.time()*1e3
                    }
-                sock.emit(self.__WS_MTYPE['p'], msg)
+                sock[1].emit(self.__WS_MTYPE['p'], msg)
             except Exception as e:
                 pass
         
@@ -197,41 +205,43 @@ class Session(object):
         
     @info("Session")
     def copy(self, href, duration=None, download_schedule=BaseDownloadSchedule(), upload_schedule=BaseUploadSchedule()):
-        ex = self._runtime.find(href)
-        sock_up = self._viz_register("{}_upload".format(ex.name), ex.size, len(self._depots))
-        sock_down = self._viz_register("{}_download".format(ex.name), ex.size, len(self._depots))
         def offsets(size):
             i = 0
             while i < size:
                 ext = download_schedule.get({"offset": i})
                 yield ext
                 i += ext.size
-        def _copy_chunk(ext):
-            try:
-                alloc = factory.buildAllocation(ext)
-                src_desc = Depot(ext.location)
-                dest_desc = Depot(upload_schedule.get({"offset": ext.offset, "size": ext.size}))
-                src_depot = self._depots[src_desc.endpoint]
-                dest_depot = self._depots[dest_desc.endpoint]
-                dst_alloc = alloc.copy(dest_desc, src_depot.to_JSON(), dest_depot.to_JSON())
-                dst_ext = dst_alloc.getMetadata()
-                self._viz_progress(sock_down, ext.location, ext.size, ext.offset)
-                self._viz_progress(sock_up, dst_ext.location, dst_ext.size, dst_ext.offset)
-                return (ext, dst_alloc)
-            except Exception as exp:
-                print ("READ Error: {}".format(exp))
-            return ext, False
+        def _copy_chunk(sock_down, sock_up):
+            def _f(ext):
+                try:
+                    alloc = factory.buildAllocation(ext)
+                    src_desc = Depot(ext.location)
+                    dest_desc = Depot(upload_schedule.get({"offset": ext.offset, "size": ext.size}))
+                    src_depot = self._depots[src_desc.endpoint]
+                    dest_depot = self._depots[dest_desc.endpoint]
+                    dst_alloc = alloc.copy(dest_desc, src_depot.to_JSON(), dest_depot.to_JSON())
+                    dst_ext = dst_alloc.getMetadata()
+                    self._viz_progress(sock_down, ext.location, ext.size, ext.offset)
+                    self._viz_progress(sock_up, dst_ext.location, dst_ext.size, dst_ext.offset)
+                    return (ext, dst_alloc)
+                except Exception as exp:
+                    print ("READ Error: {}".format(exp))
+                return ext, False
+            return _f
                 
         self._validate_url(href)
+        ex = self._runtime.find(href)
         allocs = ex.extents
         futures = []
         download_schedule.setSource(allocs)
         upload_schedule.setSource(self._depots)
         
+        sock_up = self._viz_register("{}_upload".format(ex.name), ex.size, len(self._depots))
+        sock_down = self._viz_register("{}_download".format(ex.name), ex.size, len(self._depots))
         time_s = time.time()
         with ThreadPoolExecutor(max_workers=self._threads) as executor:
-            for src_alloc, dst_alloc  in executor.map(_copy_chunk, offsets(ex.size)):
-                alloc = dst_alloc.getMetadata()
+            for src_alloc, dst_alloc  in executor.map(_copy_chunk(sock_down, sock_up), offsets(ex.size)):
+                alloc = dst_alloc
                 self._runtime.insert(alloc, commit=True)
                 alloc.parent = ex
                 ex.extents.append(alloc)
