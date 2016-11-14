@@ -41,7 +41,7 @@ class Session(object):
         self._viz = kwargs.get("viz_url", None)
         self._id = uuid.uuid4().hex  # use if we're matching a webGUI session
         self.log = getLogger()
-
+        
         if self._viz:
             try:
                 o = urisplit(self._viz)
@@ -204,6 +204,7 @@ class Session(object):
         
     @info("Session")
     def copy(self, href, duration=None, download_schedule=BaseDownloadSchedule(), upload_schedule=BaseUploadSchedule()):
+        ex = self._runtime.find(href)
         sock_up = self._viz_register("{}_upload".format(ex.name), ex.size, len(self._depots))
         sock_down = self._viz_register("{}_download".format(ex.name), ex.size, len(self._depots))
         def offsets(size):
@@ -216,19 +217,19 @@ class Session(object):
             try:
                 alloc = factory.buildAllocation(ext)
                 src_desc = Depot(ext.location)
-                dest_desc = Depot(upload_schedule.get({"offset": offset, "size": size, "data": data}))
+                dest_desc = Depot(upload_schedule.get({"offset": ext.offset, "size": ext.size}))
                 src_depot = self._depots[src_desc.endpoint]
                 dest_depot = self._depots[dest_desc.endpoint]
                 dst_alloc = alloc.copy(dest_desc, src_depot.to_JSON(), dest_depot.to_JSON())
-                self._viz_progress(sock_down, alloc.location, alloc.size, alloc.offset)
-                self._viz_progress(sock_up, dst_alloc.location, dst_alloc.size, dst_alloc.offset)
+                dst_ext = dst_alloc.getMetadata()
+                self._viz_progress(sock_down, ext.location, ext.size, ext.offset)
+                self._viz_progress(sock_up, dst_ext.location, dst_ext.size, dst_ext.offset)
                 return (ext, dst_alloc)
             except Exception as exp:
                 print ("READ Error: {}".format(exp))
             return ext, False
                 
         self._validate_url(href)
-        ex = self._runtime.find(href)
         allocs = ex.extents
         futures = []
         download_schedule.setSource(allocs)
@@ -237,7 +238,7 @@ class Session(object):
         time_s = time.time()
         with ThreadPoolExecutor(max_workers=self._threads) as executor:
             for src_alloc, dst_alloc  in executor.map(_copy_chunk, offsets(ex.size)):
-                alloc = future.result().getMetadata()
+                alloc = dst_alloc.getMetadata()
                 self._runtime.insert(alloc, commit=True)
                 alloc.parent = ex
                 ex.extents.append(alloc)

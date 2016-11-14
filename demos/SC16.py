@@ -74,8 +74,6 @@ def main():
     parser = argparse.ArgumentParser(description="DLT File Transfer Tool")
     parser.add_argument('files', metavar='FILES', type=str, nargs='+',
                         help='Files to copy')
-    parser.add_argument('-b', '--bs', type=str, default='5m',
-                        help='Block size')
     parser.add_argument('-i', '--input-depot-file', type=str, default='.indepots',
                         help='Depots in a JSON dict used for upload')
     parser.add_argument('-o', '--output-depot-file', type=str, default='.outdepots',
@@ -131,7 +129,11 @@ def main():
         
     sess = Session(url, depots)
     for f in args.files:
-        sess.copy(f, upload_schedule=up_sched, download_schedule=down_sched)
+        diff, res = sess.copy(f, upload_schedule=up_sched, download_schedule=down_sched)
+
+        print ("{0} ({1} {2:.2f} MB/s) {3}".format(res.name, res.size,
+                                                   res.size/1e6/diff,
+                                                   res.selfRef))
 
 
 if __name__ == "__main__":
