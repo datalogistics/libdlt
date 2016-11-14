@@ -247,7 +247,7 @@ class Session(object):
         
         if self._do_flush:
             self._runtime.flush()
-        return (time_e - time_s, ex, ex)
+        return (time_e - time_s, ex)
         
     @info("Session")
     def mkdir(self, path):
