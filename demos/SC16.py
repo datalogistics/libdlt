@@ -88,7 +88,6 @@ def main():
                         help='Include verbose debug output')
     
     args = parser.parse_args()
-    bs = args.bs
     idf = args.input_depot_file
     odf = args.output_depot_file
     
