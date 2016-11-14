@@ -42,14 +42,6 @@ class Session(object):
         self._id = uuid.uuid4().hex  # use if we're matching a webGUI session
         self.log = getLogger()
         
-        if self._viz:
-            try:
-                o = urisplit(self._viz)
-                self._socks = []
-            except Exception as e:
-                self.log.warn("Session.__init__: websocket connection failed: {}".format(e))
-                # non-fatal
-        
         if not depots:
             for depot in self._runtime.services.where(lambda x: x.serviceType in DEPOT_TYPES):
                 self._depots[depot.selfRef] = depot
@@ -71,8 +63,9 @@ class Session(object):
     @debug("Session")
     def _viz_register(self, name, size, conns):
         if self._viz:
-            sock = SocketIO(o.host, o.port)
             try:
+                o = urisplit(self._viz)
+                sock = SocketIO(o.host, o.port)
                 msg = {"sessionId": self._id,
                        "filename": name,
                        "size": size,
@@ -80,9 +73,9 @@ class Session(object):
                        "timestamp": time.time()*1e3
                    }
                 sock.emit(self.__WS_MTYPE['r'], msg)
+                return sock
             except Exception as e:
-                pass
-            return sock
+                self.log.warn("Session.__init__: websocket connection failed: {}".format(e))
         return None
             
     @debug("Session")
