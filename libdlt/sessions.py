@@ -45,7 +45,7 @@ class Session(object):
         if self._viz:
             try:
                 o = urisplit(self._viz)
-                self._sock = SocketIO(o.host, o.port)
+                self._socks = []
             except Exception as e:
                 self.log.warn("Session.__init__: websocket connection failed: {}".format(e))
                 # non-fatal
@@ -71,6 +71,7 @@ class Session(object):
     @debug("Session")
     def _viz_register(self, name, size, conns):
         if self._viz:
+            sock = SocketIO(o.host, o.port)
             try:
                 msg = {"sessionId": self._id,
                        "filename": name,
@@ -78,12 +79,14 @@ class Session(object):
                        "connections": conns,
                        "timestamp": time.time()*1e3
                    }
-                self._sock.emit(self.__WS_MTYPE['r'], msg)
+                sock.emit(self.__WS_MTYPE['r'], msg)
             except Exception as e:
                 pass
+            return sock
+        return None
             
     @debug("Session")
-    def _viz_progress(self, depot, size, offset):
+    def _viz_progress(self, sock, depot, size, offset):
         if self._viz:
             try:
                 d = Depot(depot)
@@ -93,7 +96,7 @@ class Session(object):
                        "offset": offset,
                        "timestamp": time.time()*1e3
                    }
-                self._sock.emit(self.__WS_MTYPE['p'], msg)
+                sock.emit(self.__WS_MTYPE['p'], msg)
             except Exception as e:
                 pass
         
@@ -128,7 +131,7 @@ class Session(object):
         self._runtime.insert(ex, commit=True)
         
         # register download with Periscope
-        self._viz_register(ex.name, ex.size, len(self._depots))
+        sock = self._viz_register(ex.name, ex.size, len(self._depots))
         
         executor = ThreadPoolExecutor(max_workers=self._threads)
         futures = []
@@ -144,7 +147,7 @@ class Session(object):
                     
         for future in as_completed(futures):
             ext = future.result().getMetadata()
-            self._viz_progress(ext.location, ext.size, ext.offset)
+            self._viz_progress(sock, ext.location, ext.size, ext.offset)
             self._runtime.insert(ext, commit=True)
             ext.parent = ex
             ex.extents.append(ext)
@@ -187,13 +190,13 @@ class Session(object):
             filepath = ex.name
         
         # register download with Periscope
-        self._viz_register(ex.name, ex.size, len(locs))
+        sock = self._viz_register(ex.name, ex.size, len(locs))
         
         time_s = time.time()
         with open(filepath, "wb") as fh:
             with ThreadPoolExecutor(max_workers=self._threads) as executor:
                 for alloc, data in executor.map(_download_chunk, offsets(ex.size)):
-                    self._viz_progress(alloc.location, alloc.size, alloc.offset)
+                    self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
                     fh.seek(alloc.offset)
                     fh.write(data)
         
@@ -201,40 +204,49 @@ class Session(object):
         
     @info("Session")
     def copy(self, href, duration=None, download_schedule=BaseDownloadSchedule(), upload_schedule=BaseUploadSchedule()):
+        sock_up = self._viz_register("{}_upload".format(ex.name), ex.size, len(self._depots))
+        sock_down = self._viz_register("{}_download".format(ex.name), ex.size, len(self._depots))
         def offsets(size):
             i = 0
             while i < size:
                 ext = download_schedule.get({"offset": i})
                 yield ext
                 i += ext.size
+        def _copy_chunk(ext):
+            try:
+                alloc = factory.buildAllocation(ext)
+                src_desc = Depot(ext.location)
+                dest_desc = Depot(upload_schedule.get({"offset": offset, "size": size, "data": data}))
+                src_depot = self._depots[src_desc.endpoint]
+                dest_depot = self._depots[dest_desc.endpoint]
+                dst_alloc = alloc.copy(dest_desc, src_depot.to_JSON(), dest_depot.to_JSON())
+                self._viz_progress(sock_down, alloc.location, alloc.size, alloc.offset)
+                self._viz_progress(sock_up, dst_alloc.location, dst_alloc.size, dst_alloc.offset)
+                return (ext, dst_alloc)
+            except Exception as exp:
+                print ("READ Error: {}".format(exp))
+            return ext, False
                 
         self._validate_url(href)
         ex = self._runtime.find(href)
         allocs = ex.extents
         futures = []
-        self._viz_register(ex.name, ex.size, len(self._depots))
         download_schedule.setSource(allocs)
         upload_schedule.setSource(self._depots)
         
         time_s = time.time()
         with ThreadPoolExecutor(max_workers=self._threads) as executor:
-            for alloc, data in executor.map(_download_chunk, offsets(ex.size)):
-                d = Depot(upload_schedule.get({"offset": alloc.offset, "size": alloc.size, "data": data}))
-                futures.append(executor.submit(factory.makeAllocation, data, alloc.offset, d, duration=duration,
-                                               **self._depots[d.endpoint].to_JSON()))
-                
-        for future in as_completed(futures):
-            alloc = future.result().getMetadata()
-            self._viz_progress(alloc.location, alloc.size, alloc.offset)
-            self._runtime.insert(alloc, commit=True)
-            alloc.parent = ex
-            ex.extents.append(alloc)
-            
+            for src_alloc, dst_alloc  in executor.map(_copy_chunk, offsets(ex.size)):
+                alloc = future.result().getMetadata()
+                self._runtime.insert(alloc, commit=True)
+                alloc.parent = ex
+                ex.extents.append(alloc)
+        
         time_e = time.time()
         
         if self._do_flush:
             self._runtime.flush()
-        return (time_e - time_s, ex)
+        return (time_e - time_s, ex, ex)
         
     @info("Session")
     def mkdir(self, path):

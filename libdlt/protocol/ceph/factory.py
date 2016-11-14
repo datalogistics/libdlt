@@ -53,10 +53,10 @@ class CephAdaptor(object):
         return ceph.read(parts[1], parts[2], size, **kwds)
     
     @info("CephAdaptor")
-    def copy(self, depot, **kwds):
+    def copy(self, depot, src_kwds, dst_kwds):
         dst_alloc = CephExtent()
         dst_oid = str(uuid.uuid4())
-        pool = kwds.get('pool', 'dlt')
+        pool = dst_kwds.get('pool', 'dlt')
         dst_alloc.location = "{}/{}/{}".format(depot.endpoint, pool, dst_oid)
         dst_alloc.pool = pool
         dst_alloc.size = self._allocation.size
@@ -66,5 +66,5 @@ class CephAdaptor(object):
         src = src.path.split('/')
         size = self._allocation.size
         
-        ceph.copy(src[1], src[2], dst_oid, size, **kwds)
+        ceph.copy(src[1], src[2], dst_oid, size, src_kwds, dst_kwds)
         return CephAdaptor(dst_alloc)

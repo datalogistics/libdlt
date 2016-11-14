@@ -20,14 +20,18 @@ class ProtocolService(object):
         return cluster
         
     @info("Ceph.ProtocolService")
-    def copy(self, p, src_oid, dst_oid, size, **kwds):
-        cluster = self._get_cluster(**kwds)
-        ioctx = cluster.open_ioctx(p)
+    def copy(self, p, src_oid, dst_oid, size, src_kwds, dst_kwds):
+        src_cluster = self._get_cluster(**src_kwds)
+        dst_cluster = self._get_cluster(**dst_kwds)
+        ioctx = src_cluster.open_ioctx(p)
         data = ioctx.read(src_oid, size)
         
-        pool = kwds.get("pool", "dlt")
-        ioctx.write_full(dst_oid, size)
-        ioctx.cloise()
+        ioctx.close()
+        
+        pool = dst_kwds.get("pool", "dlt")
+        ioctx = dst_cluster.open_ioctx(pool)
+        ioctx.write_full(dst_oid, data)
+        ioctx.close()
     
     @info("Ceph.ProtocolService")
     def write(self, oid, data, **kwds):

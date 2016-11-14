@@ -123,14 +123,12 @@ def main():
     url = "http://dev.crest.iu.edu:8888"
     threshold = int(util.human2bytes(args.threshold))
     md_id = ""
-    up_sched = UploadSchedule(out_depots.values()[0])
-    print(up_sched._dest)
+    up_sched = UploadSchedule(list(out_depots.keys())[0])
     if args.fallback:
         down_sched = DownloadSchedule(url, threshold, in_depots[0], in_depots[1], md_id)
     else:
         down_sched = BaseDownloadSchedule()
-
-
+        
     sess = Session(url, depots)
     for f in args.files:
         sess.copy(f, upload_schedule=up_sched, download_schedule=down_sched)
