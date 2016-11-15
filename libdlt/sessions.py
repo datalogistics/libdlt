@@ -223,7 +223,7 @@ class Session(object):
                     dst_ext = dst_alloc.getMetadata()
                     self._viz_progress(sock_down, ext.location, ext.size, ext.offset)
                     self._viz_progress(sock_up, dst_ext.location, dst_ext.size, dst_ext.offset)
-                    return (ext, dst_alloc)
+                    return (ext, dst_ext)
                 except Exception as exp:
                     print ("READ Error: {}".format(exp))
                 return ext, False
