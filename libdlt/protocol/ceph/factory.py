@@ -34,7 +34,6 @@ async def makeAllocation(data, offset, depot, loop, **kwds):
     alloc.offset = offset
     alloc.size = len(data)
     await ceph.write(oid, data, loop, **kwds)
-    print(offset)
     return CephAdaptor(alloc)
 
 class CephAdaptor(object):
