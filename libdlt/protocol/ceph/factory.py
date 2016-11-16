@@ -46,11 +46,11 @@ class CephAdaptor(object):
         return self._allocation
         
     @info("CephAdaptor")
-    def read(self, **kwds):
+    def read(self, loop, **kwds):
         o = urisplit(self._allocation.location)
         parts = o.path.split('/')
         size = self._allocation.size
-        return ceph.read(parts[1], parts[2], size, **kwds)
+        return ceph.read(parts[1], parts[2], size, loop, **kwds)
     
     @info("CephAdaptor")
     def copy(self, depot, src_kwds, dst_kwds):

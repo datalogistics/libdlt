@@ -349,7 +349,7 @@ class ProtocolService(object):
            The data stored in the allocation
     '''
     @info("IBP.ProtocolService")
-    def load(self, alloc, **kwargs):
+    async def load(self, alloc, loop, **kwargs):
         assert alloc.depot
         depot = alloc.depot
         timeout = DEFAULT_TIMEOUT
@@ -370,7 +370,7 @@ class ProtocolService(object):
                                                                                                     offset  = offset,
                                                                                                     length  = alloc.size,
                                                                                                     timeout = timeout)
-            result = self._receive_data(depot, tmpCommand, alloc.size)
+            result = await loop.run_in_executor(self._receive_data, depot, tmpCommand, alloc.size)
             if not result:
                 return None
         except Exception as exp:

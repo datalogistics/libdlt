@@ -109,9 +109,8 @@ class Session(object):
         
 
     @debug("Session")
-    async def _generate_jobs(self, datasource, *args):
-        it = datasource(*args)
-        async for info in it:
+    async def _generate_jobs(self, iterator, *args):
+        async for info in iterator(*args):
             await self._jobs.put(info)
         await self._jobs.put(None)
         return []
@@ -152,8 +151,9 @@ class Session(object):
                 data = await self._loop.run_in_executor(None, it._fh.read, self._blocksize)
                 if not data:
                     raise StopAsyncIteration
+                offset = it._offset
                 it._offset += len(data)
-                return (it._offset, data)
+                return (offset, data)
         
         ## Create Folder ##
         if isinstance(folder, str):
@@ -194,22 +194,42 @@ class Session(object):
         return (time_e - time_s, ex)
     
     
+    @debug("Session")
+    async def _download_chunks(self, filepath, schedule, sock):
+        def _write(fh, offset, data):
+            fh.seek(offset)
+            return self._loop.run_in_executor(None, fh.write, data)
+        job = await self._jobs.get()
+        fh = open(filepath, 'wb')
+        while job:
+            offset, end = job
+            alloc = schedule.get({"offset": offset})
+            if not alloc:
+                await self._jobs.put(None)
+                fh.close()
+            if alloc.offset + alloc.size < end:
+                await self._jobs.put((offset + alloc.size, end))
+            
+            ## Download chunk ##
+            d = Depot(alloc.location)
+            service = factory.buildAllocation(alloc)
+            data = await service.read(self._loop, **self._depots[d.endpoint].to_JSON())
+            self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
+            fh.seek(alloc.offset)
+            data = await _write(fh, alloc.offset, data)
+            
+            job = await self._jobs.get()
+        
+        await self._jobs.put(None)
+        fh.close()
+        
     @info("Session")
     def download(self, href, filepath, length=0, offset=0, schedule=BaseDownloadSchedule()):
-        def offsets(size):
-            i = 0
-            while i < size:
-                ext = schedule.get({"offset": i})
-                yield ext
-                i += ext.size
-        def _download_chunk(ext):
-            try:
-                alloc = factory.buildAllocation(ext)
-                d = Depot(ext.location)
-                return ext, alloc.read(**self._depots[d.endpoint].to_JSON())
-            except Exception as exp:
-                print ("READ Error: {}".format(exp))
-            return ext, False
+        async def _start_job(size):
+            await self._jobs.put((0, size))
+            await self._jobs.put(None)
+            return []
+            
         self._validate_url(href)
         ex = self._runtime.find(href)
         allocs = ex.extents
@@ -229,12 +249,9 @@ class Session(object):
         sock = self._viz_register(ex.name, ex.size, len(locs))
         
         time_s = time.time()
-        with open(filepath, "wb") as fh:
-            with ThreadPoolExecutor(max_workers=self._threads) as executor:
-                for alloc, data in executor.map(_download_chunk, offsets(ex.size)):
-                    self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
-                    fh.seek(alloc.offset)
-                    fh.write(data)
+        workers = [asyncio.ensure_future(self._download_chunks(filepath, schedule, sock), loop=self._loop) for _ in range(self._threads)]
+        workers.append(asyncio.ensure_future(_start_job(ex.size), loop=self._loop))
+        done, pending = self._loop.run_until_complete(asyncio.wait(workers))
         
         return (time.time() - time_s, ex)
         
