@@ -1,3 +1,4 @@
+import asyncio
 import concurrent.futures
 import getpass
 import os
@@ -5,6 +6,7 @@ import re
 import time
 import types
 import uuid
+import logging
 
 from itertools import cycle
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -44,7 +46,11 @@ class Session(object):
         self._depots = {}
         self._threads = threads
         self._viz = kwargs.get("viz_url", None)
+        self._jobs = asyncio.Queue()
+        self._loop = asyncio.get_event_loop()
         self.log = getLogger()
+        
+        self._loop.set_default_executor(ThreadPoolExecutor(threads))
         
         if not depots:
             for depot in self._runtime.services.where(lambda x: x.serviceType in DEPOT_TYPES):
@@ -101,63 +107,92 @@ class Session(object):
             except Exception as e:
                 pass
         
-    #### TODO ####
-    #  Upload assumes sucessful push to all depots
-    #  Needs better success/failure metrics
-    ##############
+
+    @debug("Session")
+    async def _generate_jobs(self, datasource, *args):
+        it = datasource(*args)
+        async for info in it:
+            await self._jobs.put(info)
+        await self._jobs.put(None)
+        return []
+    
+    @debug("Session")
+    async def _upload_chunks(self, schedule, duration, sock):
+        job = await self._jobs.get()
+        allocs = []
+        while job:
+            offset, data = job
+            
+            ## Upload chunk ##
+            d = Depot(schedule.get({"offset": offset, "size": len(data), "data": data}))
+            alloc = await factory.makeAllocation(data, offset, d, duration=duration, **self._depots[d.endpoint].to_JSON(), loop=self._loop)
+            
+            ## Create Allocation ##
+            alloc = alloc.getMetadata()
+            self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
+            allocs.append(alloc)
+            job = await self._jobs.get()
+            
+        
+        await self._jobs.put(None)
+        return allocs
+        
     @info("Session")
     def upload(self, filepath, folder=None, copies=COPIES, duration=None, schedule=BaseUploadSchedule()):
-        def _chunked(fh, bs, size):
-            offset = 0
-            while True:
-                bs = min(bs, size - offset)
-                data = fh.read(bs)
+        #self._loop.set_debug(True)
+        #logging.getLogger('asyncio').setLevel(logging.DEBUG)
+        ## Read File ##
+        class aoifile_iter:
+            def __init__(it, fh):
+                it._fh = fh
+                it._offset = 0
+            async def __aiter__(it):
+                return it
+            async def __anext__(it):
+                data = await self._loop.run_in_executor(None, it._fh.read, self._blocksize)
                 if not data:
-                    return
-                yield (offset, bs, data)
-                offset += bs
-            
+                    raise StopAsyncIteration
+                it._offset += len(data)
+                return (it._offset, data)
+        
+        ## Create Folder ##
         if isinstance(folder, str):
             do_flush = self._do_flush
             self._do_flush = False
             folder = self.mkdir(folder)
             self._do_flush = do_flush
-        
+            
+        ## Setup ##
         stat = os.stat(filepath)
         ex = Exnode({ "parent": folder, "created": int(time.time() * 1000000), "mode": "file", "size": stat.st_size,
                       "permission": format(stat.st_mode & 0o0777, 'o'), "owner": getpass.getuser(),
                       "name": os.path.basename(filepath) })
         ex.group = ex.owner
         ex.updated = ex.created
-        self._runtime.insert(ex, commit=True)
-        
-        # register download with Periscope
         sock = self._viz_register(ex.name, ex.size, len(self._depots))
-        
-        executor = ThreadPoolExecutor(max_workers=self._threads)
-        futures = []
-        time_s = time.time()
-        
         schedule.setSource(self._depots)
-        with open(filepath, "rb") as fh:
-            for offset, size, data in _chunked(fh, self._blocksize, ex.size):
-                for n in range(copies):
-                    d = Depot(schedule.get({"offset": offset, "size": size, "data": data}))
-                    futures.append(executor.submit(factory.makeAllocation, data, offset, d, duration=duration,
-                                                   **self._depots[d.endpoint].to_JSON()))
-                    
-        for future in as_completed(futures):
-            ext = future.result().getMetadata()
-            self._viz_progress(sock, ext.location, ext.size, ext.offset)
-            self._runtime.insert(ext, commit=True)
-            ext.parent = ex
-            ex.extents.append(ext)
-            
+        ## Generate tasks ##
+        workers = []
+        time_s = time.time()
+        workers = [asyncio.ensure_future(self._upload_chunks(schedule, duration, sock), loop=self._loop) for _ in range(self._threads)]
+        with open(filepath, 'rb') as fh:
+            workers.append(asyncio.ensure_future(self._generate_jobs(aoifile_iter, fh), loop=self._loop))
+            done, pending = self._loop.run_until_complete(asyncio.wait(workers))
+        
         time_e = time.time()
-            
+        
+        ## Generate Exnode ##
+        self._runtime.insert(ex, commit=True)
+        for task in done:
+            for alloc in task.result():
+                alloc.parent = ex
+                ex.extents.append(alloc)
+                self._runtime.insert(alloc, commit=True)
+        
         if self._do_flush:
             self._runtime.flush()
         return (time_e - time_s, ex)
+    
     
     @info("Session")
     def download(self, href, filepath, length=0, offset=0, schedule=BaseDownloadSchedule()):

@@ -36,8 +36,8 @@ def buildAllocation(json):
 
 # create a new object and metadata given data and depot target
 @info("IBP.factory")
-def makeAllocation(data, offset, depot, **kwds):
-    return IBPAdaptor(data=data, offset=offset, depot=depot, **kwds)
+async def makeAllocation(data, offset, depot, loop, **kwds):
+    return await IBPAdaptor(data=data, offset=offset, depot=depot, loop=loop, **kwds)
     
 class IBPAdaptor(object):
     @debug("IBPAdaptor")

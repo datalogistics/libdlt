@@ -25,7 +25,7 @@ def buildAllocation(obj):
     return CephAdaptor(alloc)
 
 @info("Ceph.factory")
-def makeAllocation(data, offset, depot, **kwds):
+async def makeAllocation(data, offset, depot, loop, **kwds):
     alloc = CephExtent()
     pool = kwds.get("pool", "dlt")
     oid = str(uuid.uuid4())
@@ -33,7 +33,8 @@ def makeAllocation(data, offset, depot, **kwds):
     alloc.pool = pool
     alloc.offset = offset
     alloc.size = len(data)
-    ceph.write(oid, data, **kwds)
+    await ceph.write(oid, data, loop, **kwds)
+    print(offset)
     return CephAdaptor(alloc)
 
 class CephAdaptor(object):

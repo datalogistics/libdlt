@@ -1,3 +1,5 @@
+import asyncio
+
 from rados.core import Cluster
 
 from libdlt.logging import debug, info
@@ -6,16 +8,16 @@ class ProtocolService(object):
     @debug("Ceph.ProtocolService")
     def __init__(self):
         self.cluster_cache = dict()
-
+        
     @debug("Ceph.ProtocolService")
-    def _get_cluster(self, **kwds):
+    async def _get_cluster(self, loop, **kwds):
         conf = kwds.get("config", '')
         name = kwds.get("name", '')
         cname = kwds.get("clustername", None)
         cluster = self.cluster_cache.get(conf, None)
         if not cluster:
             cluster = Cluster(conffile=conf, clustername=cname)
-            cluster.connect()
+            await loop.run_in_executor(None, cluster.connect)
             self.cluster_cache[conf] = cluster
         return cluster
         
@@ -34,11 +36,11 @@ class ProtocolService(object):
         ioctx.close()
     
     @info("Ceph.ProtocolService")
-    def write(self, oid, data, **kwds):
-        cluster = self._get_cluster(**kwds)
+    async def write(self, oid, data, loop, **kwds):
+        cluster = await self._get_cluster(loop, **kwds)
         pool = kwds.get("pool", "dlt")
         ioctx = cluster.open_ioctx(pool)
-        ioctx.write_full(oid, data)
+        await loop.run_in_executor(None, ioctx.write_full, oid, data)
         ioctx.close()
         
     @info("Ceph.ProtocolService")
