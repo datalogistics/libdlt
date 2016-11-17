@@ -217,7 +217,6 @@ class Session(object):
             fh.seek(alloc.offset)
             data = await _write(fh, alloc.offset, data)
         
-        await self._jobs.put(None)
         fh.close()
         
     @info("Session")
