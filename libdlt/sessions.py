@@ -201,7 +201,7 @@ class Session(object):
             return self._loop.run_in_executor(None, fh.write, data)
         fh = open(filepath, 'wb')
         while not self._jobs.empty():
-            offset, end = await self._jobs.get_nowait()
+            offset, end = self._jobs.get_nowait()
             alloc = schedule.get({"offset": offset})
             if not alloc:
                 fh.close()
