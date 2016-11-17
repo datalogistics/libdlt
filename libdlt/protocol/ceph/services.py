@@ -45,7 +45,7 @@ class ProtocolService(object):
         
     @info("Ceph.ProtocolService")
     async def read(self, p, oid, size, loop, **kwds):
-        cluster = await self._get_cluster(**kwds)
+        cluster = await self._get_cluster(loop, **kwds)
         ioctx = cluster.open_ioctx(p)
         ret = await loop.run_in_executor(None, ioctx.read, oid, size)
         ioctx.close()

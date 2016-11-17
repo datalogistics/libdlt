@@ -199,14 +199,13 @@ class Session(object):
         def _write(fh, offset, data):
             fh.seek(offset)
             return self._loop.run_in_executor(None, fh.write, data)
-        job = await self._jobs.get()
         fh = open(filepath, 'wb')
-        while job:
-            offset, end = job
+        while not self._jobs.empty():
+            offset, end = await self._jobs.get_nowait()
             alloc = schedule.get({"offset": offset})
             if not alloc:
-                await self._jobs.put(None)
                 fh.close()
+                return
             if alloc.offset + alloc.size < end:
                 await self._jobs.put((offset + alloc.size, end))
             
@@ -217,19 +216,12 @@ class Session(object):
             self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
             fh.seek(alloc.offset)
             data = await _write(fh, alloc.offset, data)
-            
-            job = await self._jobs.get()
         
         await self._jobs.put(None)
         fh.close()
         
     @info("Session")
     def download(self, href, filepath, length=0, offset=0, schedule=BaseDownloadSchedule()):
-        async def _start_job(size):
-            await self._jobs.put((0, size))
-            await self._jobs.put(None)
-            return []
-            
         self._validate_url(href)
         ex = self._runtime.find(href)
         allocs = ex.extents
@@ -249,8 +241,8 @@ class Session(object):
         sock = self._viz_register(ex.name, ex.size, len(locs))
         
         time_s = time.time()
+        self._jobs.put_nowait((0, ex.size))
         workers = [asyncio.ensure_future(self._download_chunks(filepath, schedule, sock), loop=self._loop) for _ in range(self._threads)]
-        workers.append(asyncio.ensure_future(_start_job(ex.size), loop=self._loop))
         done, pending = self._loop.run_until_complete(asyncio.wait(workers))
         
         return (time.time() - time_s, ex)
