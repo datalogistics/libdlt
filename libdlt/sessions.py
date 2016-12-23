@@ -39,6 +39,9 @@ class Session(object):
         self._viz = kwargs.get("viz_url", None)
         self._id = uuid.uuid4().hex  # use if we're matching a webGUI session
         self.log = getLogger()
+        self.use_buffer = False # use buffer instead of files
+        self.data_buffer = b''
+        self.data_buffer_size = 0
 
         if self._viz:
             try:
@@ -94,7 +97,7 @@ class Session(object):
                 self._sock.emit(self.__WS_MTYPE['p'], msg)
             except Exception as e:
                 pass
-        
+            
     #### TODO ####
     #  Upload assumes sucessful push to all depots
     #  Needs better success/failure metrics
@@ -110,17 +113,34 @@ class Session(object):
                     return
                 yield (offset, bs, data)
                 offset += bs
-            
+
+        def _chunked_buf(bs, size):
+            offset = 0
+            while True:
+                bs = min(bs, size - offset)
+                end_offset = offset + bs
+                data = self.data_buffer[offset:end_offset]
+                if not data:
+                    return
+                yield (offset, bs, data)
+                offset += bs
+                
         if isinstance(folder, str):
             do_flush = self._do_flush
             self._do_flush = False
             folder = self.mkdir(folder)
             self._do_flush = do_flush
-        
-        stat = os.stat(filepath)
-        ex = Exnode({ "parent": folder, "created": int(time.time() * 1000000), "mode": "file", "size": stat.st_size,
-                      "permission": format(stat.st_mode & 0o0777, 'o'), "owner": getpass.getuser(),
-                      "name": os.path.basename(filepath) })
+
+        if self.use_buffer:
+            ex = Exnode({ "parent": folder, "created": int(time.time() * 1000000), "mode": "file", "size": self.data_buffer_size,
+                          "permission": format(0o0644, 'o'), "owner": getpass.getuser(),
+                          "name": filepath })
+        else:
+            stat = os.stat(filepath)
+            ex = Exnode({ "parent": folder, "created": int(time.time() * 1000000), "mode": "file", "size": stat.st_size,
+                          "permission": format(stat.st_mode & 0o0777, 'o'), "owner": getpass.getuser(),
+                          "name": os.path.basename(filepath) })
+    
         ex.group = ex.owner
         ex.updated = ex.created
         self._runtime.insert(ex, commit=True)
@@ -131,15 +151,30 @@ class Session(object):
         executor = ThreadPoolExecutor(max_workers=THREADS)
         futures = []
         time_s = time.time()
-        
+
         schedule.setSource(self._depots)
-        with open(filepath, "rb") as fh:
-            for offset, size, data in _chunked(fh, self._blocksize, ex.size):
+
+        if self.use_buffer:
+            for offset, size, data in _chunked_buf(self._blocksize, ex.size):
                 for n in range(copies):
                     d = Depot(schedule.get({"offset": offset, "size": size, "data": data}))
-                    futures.append(executor.submit(factory.makeAllocation, data, offset, d, duration=duration,
-                                                   **self._depots[d.endpoint].to_JSON()))
-                    
+                    depots_dict = self._depots[d.endpoint].to_JSON()
+                    if 'duration' in depots_dict.keys():
+                        futures.append(executor.submit(factory.makeAllocation, data, offset, d, **self._depots[d.endpoint].to_JSON()))
+                    else:
+                        futures.append(executor.submit(factory.makeAllocation, data, offset, d, duration = duration, **self._depots[d.endpoint].to_JSON()))
+        else:
+            with open(filepath, "rb") as fh:
+                for offset, size, data in _chunked(fh, self._blocksize, ex.size):
+                    for n in range(copies):
+                        d = Depot(schedule.get({"offset": offset, "size": size, "data": data}))
+                        depots_dict = self._depots[d.endpoint].to_JSON()
+                        if 'duration' in depots_dict.keys():
+                            futures.append(executor.submit(factory.makeAllocation, data, offset, d, **self._depots[d.endpoint].to_JSON()))
+                        else:
+                            futures.append(executor.submit(factory.makeAllocation, data, offset, d, duration = duration, **self._depots[d.endpoint].to_JSON()))
+
+
         for future in as_completed(futures):
             ext = future.result().getMetadata()
             self._viz_progress(ext.location, ext.size, ext.offset)
@@ -196,10 +231,11 @@ class Session(object):
             if pending:
                 segment = pending.pop()
                 alloc = schedule.get({ "offset": segment[0] })
-                end = alloc.offset + alloc.size
-                if end < segment[1]:
-                    pending.append((end, segment[1]))
-                    in_flight.append(executor.submit(_download_chunk, alloc))
+                if alloc:
+                    end = alloc.offset + alloc.size
+                    if end < segment[1]:
+                        pending.append((end, segment[1]))
+                        in_flight.append(executor.submit(_download_chunk, alloc))
             done, in_flight = concurrent.futures.wait(in_flight, return_when=concurrent.futures.FIRST_COMPLETED)
     
     @info("Session")
@@ -209,7 +245,8 @@ class Session(object):
         allocs = ex.extents
         schedule.setSource(allocs)
         locs = {}
-        
+        end_offset = 0
+
         # bin extents and locations
         for alloc in allocs:
             if alloc.location not in locs:
@@ -222,14 +259,24 @@ class Session(object):
         # register download with Periscope
         self._viz_register(ex.name, ex.size, len(locs))
         
+        self.data_buffer = bytearray(ex.size)
+
         time_s = time.time()
-        with open(filepath, "wb") as fh:
+
+        if self.use_buffer:
             with ThreadPoolExecutor(max_workers=THREADS) as executor:
                 for alloc, data in self._dl_generator(executor, schedule, ex):
                     self._viz_progress(alloc.location, alloc.size, alloc.offset)
-                    fh.seek(alloc.offset)
-                    fh.write(data)
-        
+                    end_offset = alloc.offset + alloc.size
+                    self.data_buffer[alloc.offset:end_offset] = data
+        else:
+            with open(filepath, "wb") as fh:
+                with ThreadPoolExecutor(max_workers=THREADS) as executor:
+                    for alloc, data in self._dl_generator(executor, schedule, ex):
+                        self._viz_progress(alloc.location, alloc.size, alloc.offset)
+                        fh.seek(alloc.offset)
+                        fh.write(data)
+                    
         return (time.time() - time_s, ex)
         
     @info("Session")
@@ -301,7 +348,7 @@ class Session(object):
                     root.children.append(new_folder)
                     
             root = new_folder
-        
+            
         if self._do_flush:
             self._runtime.flush()
         

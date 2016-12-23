@@ -4,24 +4,10 @@ import argparse
 import json
 import libdlt
 
-UNIS_URL = "http://localhost:8888"
-DEPOTS = {
-    #"ceph://stark": {
-    #    "clustername": 'ceph',
-    #    "config": "/etc/ceph/ceph.conf",
-    #    "pool": "test",
-    #    "crush_map": None
-    #},
-    "ceph://um-mon01.osris.org": {
-        "clustername": 'osiris',
-        "config": "/etc/ceph/osiris.conf",
-        "pool": "dlt",
-        "crush_map": None
-    },
-    "ibp://ibp2.crest.iu.edu:6714": {
-        "duration": 2592000
-    }
-}
+UNIS_URL = "http://dev.crest.iu.edu:8888" #"http://localhost:8888" # "http://unis.crest.iu.edu:8890"
+
+DEPOTS = '{"ceph://um-mon01.osris.org": {"clustername": "osiris","config": "/etc/ceph/osiris.conf","pool": "dlt","crush_map": "None"},"ibp://ibp2.crest.iu.edu:6714": {"duration": 2592000}}'
+
 
 def main():
     parser = argparse.ArgumentParser(description="DLT File Transfer Tool")
@@ -45,10 +31,9 @@ def main():
     df = args.depot_file
 
     depots = None
-    if df:
+    if DEPOTS:
         try:
-            f = open(df, "r")
-            depots = json.loads(f.read())
+            depots = json.loads(DEPOTS)
         except Exception as e:
             print ("ERROR: Could not read depot file: {}".format(e))
             exit(1)

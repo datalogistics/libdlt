@@ -46,8 +46,8 @@ class IBPAdaptor(object):
         self._service = services.ProtocolService()
         
         if data:
-            self._allocation = self._service.Allocate(depot, offset, len(data), **kwds)
-            self.Write(data,**kwds)
+            self._allocation = self._service.allocate(depot, offset, len(data), **kwds)
+            self.write(data,**kwds)
         else:
             self._allocation = alloc
     
@@ -57,20 +57,20 @@ class IBPAdaptor(object):
         
     @info("IBPAdaptor")
     def read(self, **kwds):
-        return self._service.Load(self._allocation, **kwds)
+        return self._service.load(self._allocation, **kwds)
         
     @info("IBPAdaptor")
     def write(self, data, **kwds):
-        self._service.Store(self._allocation, data, len(data), **kwds)
+        self._service.store(self._allocation, data, len(data), **kwds)
         
     @info("IBPAdaptor")
     def check(self, **kwds):
-        depot_status = self._service.GetStatus(self._allocation.depot)
+        depot_status = self._service.getStatus(self._allocation.depot)
         
         if not depot_status:
             raise AllocationException("could not contact Depot")
         
-        alloc_status = self._service.Probe(self._allocation)
+        alloc_status = self._service.probe(self._allocation)
         self._log.debug("IBPAdapter.Check: {status}".format(status = alloc_status))
         
         if not alloc_status:
@@ -90,13 +90,13 @@ class IBPAdaptor(object):
         
         dest_alloc = buildAllocation(self._allocation.to_JSON())
         
-        response = self._service.Allocate(destination, size, **kwds)
+        response = self._service.allocate(destination, size, **kwds)
         if not response:
             return False
         
         dest_alloc._allocation.Inherit(response)
         dest_alloc.offset = offset
-        duration = self._service.Send(self._allocation, alloc, **kwds)
+        duration = self._service.send(self._allocation, alloc, **kwds)
         
         if not duration:
             return False
@@ -112,12 +112,12 @@ class IBPAdaptor(object):
         
     @info("IBPAdaptor")
     def release(self):
-        details = self._service.Probe(self._allocation)
+        details = self._service.probe(self._allocation)
         self._allocation.end = datetime.datetime.utcnow()
         
         if details:
             for i in range(1, int(details["read_count"]) + 1):
-                result = self._service.Manage(self._allocation, mode = flags.IBP_DECR, cap_type = flags.IBP_READCAP)
+                result = self._service.manage(self._allocation, mode = flags.IBP_DECR, cap_type = flags.IBP_READCAP)
                 if not result:
                     return False
                     
@@ -127,12 +127,12 @@ class IBPAdaptor(object):
 
     @info("IBPAdaptor")
     def manage(self, **kwds):
-        if not self._service.Manage(self._allocation, **kwds):
+        if not self._service.manage(self._allocation, **kwds):
             return False
 
         #####################
         # FOR DEBUGGING ONLY#
-        status = self._service.Probe(self._allocation)
+        status = self._service.probe(self._allocation)
         self.log.debug("Manage result: {status}".format(status = status))
         #####################
 
