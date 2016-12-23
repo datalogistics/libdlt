@@ -40,11 +40,7 @@ class BaseDownloadSchedule(AbstractSchedule):
         
     def get(self, context={}):
         offset = context["offset"]
-        print ("------- Inside scheduler\n")
-        #print ("list is {}".format(self._ls))
-        #print ("offset = {}".format(offset))
         if offset in self._ls and self._ls[offset]:
-            #print ("enters if ...")
             return self._ls[offset].pop()
         else:
             result = None
