@@ -109,9 +109,10 @@ class Session(object):
         
 
     @debug("Session")
-    async def _generate_jobs(self, iterator, *args):
-        async for info in iterator(*args):
-            await self._jobs.put(info)
+    async def _generate_jobs(self, iterator, copies fh):
+        async for info in iterator(fh):
+            for copy in copies:
+                await self._jobs.put(info)
         await self._jobs.put(None)
         return []
     
@@ -132,7 +133,6 @@ class Session(object):
             allocs.append(alloc)
             job = await self._jobs.get()
             
-        
         await self._jobs.put(None)
         return allocs
         
@@ -176,7 +176,7 @@ class Session(object):
         time_s = time.time()
         workers = [asyncio.ensure_future(self._upload_chunks(schedule, duration, sock), loop=self._loop) for _ in range(self._threads)]
         with open(filepath, 'rb') as fh:
-            workers.append(asyncio.ensure_future(self._generate_jobs(aoifile_iter, fh), loop=self._loop))
+            workers.append(asyncio.ensure_future(self._generate_jobs(aoifile_iter, copies, fh), loop=self._loop))
             done, pending = self._loop.run_until_complete(asyncio.wait(workers))
         
         time_e = time.time()
@@ -341,6 +341,21 @@ class Session(object):
             self._runtime.flush()
         
         return root
+
+    @debug("Session")
+    def annotate(self, exnode):
+        class _modifier:
+            def __getattr__(self, n):
+                exnode.__getattribute__(n)
+            def __setattr__(self, n, v):
+                exnode.__setattr__(n, v)
+                exnode.commit(n)
+            def __enter__(mod):
+                pass
+            def __exit__(mod):
+                self._runtime.flush()
+        return _modifier()
+    
     
     @debug("Session")
     def _validate_url(self, url):
