@@ -65,7 +65,9 @@ class Session(object):
             raise ValueError("No depots found for session, unable to continue")
     
     @debug("Session")
-    def _viz_register(self, name, size, conns):
+    def _viz_register(self, name, size, conns, cb):
+        if cb:
+            cb(None, name, size, 0, 0)
         if self._viz:
             try:
                 uid = uuid.uuid4().hex
@@ -84,7 +86,9 @@ class Session(object):
         return None
             
     @debug("Session")
-    def _viz_progress(self, sock, depot, size, offset):
+    def _viz_progress(self, sock, name, tsize, depot, size, offset, cb):
+        if cb:
+            cb(depot, name, tsize, size, offset)
         if self._viz:
             try:
                 d = Depot(depot)
@@ -106,7 +110,7 @@ class Session(object):
     #  Needs better success/failure metrics
     ##############
     @info("Session")
-    def upload(self, filepath, folder=None, copies=COPIES, duration=None, schedule=BaseUploadSchedule()):
+    def upload(self, filepath, folder=None, copies=COPIES, duration=None, schedule=BaseUploadSchedule(), progress_cb=None):
         def _chunked(fh, bs, size):
             offset = 0
             while True:
@@ -132,7 +136,7 @@ class Session(object):
         self._runtime.insert(ex, commit=True)
         
         # register download with Periscope
-        sock = self._viz_register(ex.name, ex.size, len(self._depots))
+        sock = self._viz_register(ex.name, ex.size, len(self._depots), progress_cb)
         
         executor = ThreadPoolExecutor(max_workers=self._threads)
         futures = []
@@ -148,7 +152,7 @@ class Session(object):
                     
         for future in as_completed(futures):
             ext = future.result().getMetadata()
-            self._viz_progress(sock, ext.location, ext.size, ext.offset)
+            self._viz_progress(sock, ex.name, ex.size, ext.location, ext.size, ext.offset, progress_cb)
             self._runtime.insert(ext, commit=True)
             ext.parent = ex
             ex.extents.append(ext)
@@ -160,7 +164,7 @@ class Session(object):
         return (time_e - time_s, ex)
     
     @info("Session")
-    def download(self, href, filepath, length=0, offset=0, schedule=BaseDownloadSchedule()):
+    def download(self, href, filepath, length=0, offset=0, schedule=BaseDownloadSchedule(), progress_cb=None):
         def offsets(size):
             i = 0
             while i < size:
@@ -191,13 +195,13 @@ class Session(object):
             filepath = ex.name
         
         # register download with Periscope
-        sock = self._viz_register(ex.name, ex.size, len(locs))
+        sock = self._viz_register(ex.name, ex.size, len(locs), progress_cb)
         
         time_s = time.time()
         with open(filepath, "wb") as fh:
             with ThreadPoolExecutor(max_workers=self._threads) as executor:
                 for alloc, data in executor.map(_download_chunk, offsets(ex.size)):
-                    self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
+                    self._viz_progress(sock, ex.name, ex.size, alloc.location, alloc.size, alloc.offset, progress_cb)
                     fh.seek(alloc.offset)
                     fh.write(data)
         

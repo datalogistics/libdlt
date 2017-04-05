@@ -3,6 +3,7 @@
 import argparse
 import json
 import libdlt
+from libdlt.util.common import print_progress
 
 UNIS_URL = "http://localhost:8888"
 DEPOTS = {
@@ -23,6 +24,9 @@ DEPOTS = {
     }
 }
 
+def progress(depot, name, total, size, offset):
+    print_progress(offset+size, total, name)
+
 def main():
     parser = argparse.ArgumentParser(description="DLT File Transfer Tool")
     parser.add_argument('files', metavar='FILES', type=str, nargs='+',
@@ -31,7 +35,7 @@ def main():
                         help='Perform file upload (default is download)')
     parser.add_argument('-H', '--host', type=str, default=UNIS_URL,
                         help='UNIS instance for uploading eXnode metadata')
-    parser.add_argument('-b', '--bs', type=str, default='5m',
+    parser.add_argument('-b', '--bs', type=str, default='20m',
                         help='Block size')
     parser.add_argument('-d', '--depot-file', type=str, default=None,
                         help='Depots in a JSON dict used for upload')
@@ -65,7 +69,7 @@ def main():
     xfer = sess.upload if args.upload else sess.download
         
     for f in args.files:
-        diff, res = xfer(f, args.output)
+        diff, res = xfer(f, args.output, progress_cb=progress)
         print ("{0} ({1} {2:.2f} MB/s) {3}".format(res.name, res.size,
                                                    res.size/1e6/diff,
                                                    res.selfRef))
