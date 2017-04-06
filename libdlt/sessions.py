@@ -161,7 +161,7 @@ class Session(object):
             
         if self._do_flush:
             self._runtime.flush()
-        return (time_e - time_s, ex)
+        return (time_e - time_s, ex.size, ex)
     
     @info("Session")
     def download(self, href, filepath, length=0, offset=0, schedule=BaseDownloadSchedule(), progress_cb=None):
@@ -175,9 +175,11 @@ class Session(object):
             try:
                 alloc = factory.buildAllocation(ext)
                 d = Depot(ext.location)
+                if d.endpoint not in self._depots:
+                    raise Exception("Unkown depot {}".format(d.endpoint))
                 return ext, alloc.read(**self._depots[d.endpoint].to_JSON())
             except Exception as exp:
-                print ("READ Error: {}".format(exp))
+                pass
             return ext, False
         self._validate_url(href)
         ex = self._runtime.find(href)
@@ -198,14 +200,18 @@ class Session(object):
         sock = self._viz_register(ex.name, ex.size, len(locs), progress_cb)
         
         time_s = time.time()
+        dsize = 0
         with open(filepath, "wb") as fh:
             with ThreadPoolExecutor(max_workers=self._threads) as executor:
                 for alloc, data in executor.map(_download_chunk, offsets(ex.size)):
+                    if not data:
+                        continue
+                    dsize += alloc.size
                     self._viz_progress(sock, ex.name, ex.size, alloc.location, alloc.size, alloc.offset, progress_cb)
                     fh.seek(alloc.offset)
                     fh.write(data)
         
-        return (time.time() - time_s, ex)
+        return (time.time() - time_s, dsize, ex)
         
     @info("Session")
     def copy(self, href, duration=None, download_schedule=BaseDownloadSchedule(), upload_schedule=BaseUploadSchedule()):

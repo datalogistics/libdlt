@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
+import os
 import argparse
 import json
 import libdlt
 from libdlt.util.common import print_progress
 
-UNIS_URL = "http://localhost:8888"
+USER_DEPOTS=os.path.join(os.path.expanduser("~"), ".depots")
+UNIS_URL = "http://unis.crest.iu.edu:8890"
 DEPOTS = {
     #"ceph://stark": {
     #    "clustername": 'ceph',
@@ -37,7 +39,7 @@ def main():
                         help='UNIS instance for uploading eXnode metadata')
     parser.add_argument('-b', '--bs', type=str, default='20m',
                         help='Block size')
-    parser.add_argument('-d', '--depot-file', type=str, default=None,
+    parser.add_argument('-d', '--depot-file', type=str, default=USER_DEPOTS,
                         help='Depots in a JSON dict used for upload')
     parser.add_argument('-o', '--output', type=str, default=None,
                         help='Output file')
@@ -69,10 +71,16 @@ def main():
     xfer = sess.upload if args.upload else sess.download
         
     for f in args.files:
-        diff, res = xfer(f, args.output, progress_cb=progress)
-        print ("{0} ({1} {2:.2f} MB/s) {3}".format(res.name, res.size,
-                                                   res.size/1e6/diff,
-                                                   res.selfRef))
+        diff, dsize, res = xfer(f, args.output, progress_cb=progress)
+        if dsize != res.size:
+            print ("\nWARNING: {}: transferred {} of {} bytes \
+(check depot file)".format(res.name,
+                           dsize,
+                           res.size))
+        else:
+            print ("{0} ({1} {2:.2f} MB/s) {3}".format(res.name, res.size,
+                                                       res.size/1e6/diff,
+                                                       res.selfRef))
 
 if __name__ == "__main__":
     main()
