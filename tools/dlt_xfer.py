@@ -6,22 +6,26 @@ import json
 import libdlt
 from libdlt.util.common import print_progress
 
-USER_DEPOTS=os.path.join(os.path.expanduser("~"), ".depots")
+SYS_PATH="/etc/periscope"
+USER_DEPOTS=os.path.join(SYS_PATH, "depots.conf")
 UNIS_URL = "http://unis.crest.iu.edu:8890"
 DEPOTS = {
-    #"ceph://stark": {
-    #    "clustername": 'ceph',
-    #    "config": "/etc/ceph/ceph.conf",
-    #    "pool": "test",
-    #    "crush_map": None
-    #},
+    "ceph://stark": {
+        "enabled": False,
+        "clustername": 'ceph',
+        "config": "/etc/ceph/ceph.conf",
+        "pool": "test",
+        "crush_map": None
+    },
     "ceph://um-mon01.osris.org": {
+        "enabled": True,
         "clustername": 'osiris',
         "config": "/etc/ceph/osiris.conf",
         "pool": "dlt",
         "crush_map": None
     },
     "ibp://ibp2.crest.iu.edu:6714": {
+        "enabled": True,
         "duration": 2592000
     }
 }

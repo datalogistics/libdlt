@@ -56,7 +56,7 @@ class Session(object):
                     self._depots[depot.selfRef] = depot
         elif isinstance(depots, dict):
             for name, depot in depots.items():
-                if isinstance(depot, dict):
+                if isinstance(depot, dict) and depot["enabled"]:
                     self._depots[name] = Service(depot)
         else:
             raise ValueError("depots argument must contain a list of depot description objects or a valid unis url")
