@@ -10,11 +10,11 @@ class ProtocolService(object):
     @debug("Ceph.ProtocolService")
     def _get_cluster(self, **kwds):
         conf = kwds.get("config", '')
-        name = kwds.get("name", '')
+        name = kwds.get("client_id", 'client.admin')
         cname = kwds.get("clustername", None)
         cluster = self.cluster_cache.get(conf, None)
         if not cluster:
-            cluster = Cluster(conffile=conf, clustername=cname)
+            cluster = Cluster(conffile=conf, clustername=cname, name=name)
             cluster.connect()
             self.cluster_cache[conf] = cluster
         return cluster

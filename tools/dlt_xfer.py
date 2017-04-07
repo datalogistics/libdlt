@@ -12,6 +12,7 @@ UNIS_URL = "http://unis.crest.iu.edu:8890"
 DEPOTS = {
     "ceph://stark": {
         "enabled": False,
+        "client_id": "client.admin",
         "clustername": 'ceph',
         "config": "/etc/ceph/ceph.conf",
         "pool": "test",
@@ -19,6 +20,7 @@ DEPOTS = {
     },
     "ceph://um-mon01.osris.org": {
         "enabled": True,
+        "client_id": "client.dlt",
         "clustername": 'osiris',
         "config": "/etc/ceph/osiris.conf",
         "pool": "dlt",
