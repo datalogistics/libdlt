@@ -33,7 +33,11 @@ DEPOTS = {
 }
 
 def progress(depot, name, total, size, offset):
-    print_progress(offset+size, total, name)
+    if not size:
+        progress.curr = 0
+    else:
+        progress.curr += size
+    print_progress(progress.curr, total, name)
 
 def main():
     parser = argparse.ArgumentParser(description="DLT File Transfer Tool")
