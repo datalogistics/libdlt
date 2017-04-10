@@ -17,6 +17,7 @@ mkdir -p ${RPM_DIR}
 
 declare -A PKG_MAP
 PKG_MAP=( ["unisrt"]="git+https://github.com/periscope-ps/unisrt.git"
+          ["lace"]="git+https://github.com/periscope-ps/lace.git"
           ["rados"]="git+https://github.com/mihu/python3-rados.git" )
 
 pip3 download -r requirements.txt --no-deps --no-binary :all: -d ${SRC_DIR}

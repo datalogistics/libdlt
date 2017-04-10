@@ -14,6 +14,7 @@ setup(
     package_data={'tools' : ['*.py']},
     include_package_data = True,
     install_requires=[
+        "lace",
         "rados",
         "unisrt",
         "uritools",
@@ -23,6 +24,7 @@ setup(
         "six>=1.8.0"
     ],
     dependency_links=[
+        "git+https://github.com/periscope-ps/lace.git/@master#egg=lace",
         "git+https://github.com/periscope-ps/unisrt.git/@develop#egg=unisrt",
         "git+https://github.com/mihu/python3-rados.git#egg=rados",
     ],
