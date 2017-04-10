@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 import websocket
 import time
 import sys
@@ -10,9 +11,10 @@ import signal
 import libdlt
 
 from libdlt.util import common as common
-from libdlt.util.common import ExnodePUBSUBQuery, parseArgs
+from libdlt.util.common import ExnodePUBSUBQuery, parseArgs, print_progress
 
-DEPOTS = '{"ceph://um-mon01.osris.org": {"clustername": "osiris","config": "/etc/ceph/osiris.conf","pool": "dlt","crush_map": null}, "ibp://ibp2.crest.iu.edu:6714": {"duration": 2592000}}'
+SYS_PATH="/etc/periscope"
+USER_DEPOTS=os.path.join(SYS_PATH, "depots.conf")
 SHUTDOWN = False
 
 def signal_handler(signal, frame):
@@ -23,9 +25,13 @@ def signal_handler(signal, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
+def progress(depot, name, total, size, offset):
+    print_progress(offset+size, total, name)
+
 class Listener(object):
-    def __init__(self, rq, viz, verbose, vlist):
+    def __init__(self, rq, unis_url, viz, verbose, vlist):
         self._rq  = rq
+        self._unis = unis_url.replace('ws', 'http')
         self._viz = viz
         self._verbose = verbose
         self._list = vlist
@@ -39,32 +45,32 @@ class Listener(object):
                 return
             else:
                 js = js["data"]
+            if not len(js["extents"]):
+                return
             href = js["selfRef"]
             name = js["name"]
             logging.info("Matching file %s [%d bytes]" % (js["name"], js["size"]))
+            time.sleep(2)
         except Exception as e:
             logging.warn("Failed to decode eXnode: %s" % e)
             logging.debug(message)
             return
         
         if not self._list:
+            depots = None
+            block_size = '5m'
+                
             try:
-                depots = None
-                block_size = '5m'
-                host = "http://dev.crest.iu.edu:8888"
+                f = open(USER_DEPOTS, "r")
+                depots = json.loads(f.read())
+            except Exception as e:
+                print ("ERROR: Could not read depot file: {}".format(e))
+                exit(1)
 
-                if DEPOTS:
-                    try:
-                        depots = json.loads(DEPOTS)
-                    except Exception as e:
-                        print ("ERROR: Could not read depots: {}".format(e))
-                        exit(1)
-
-                sess = libdlt.Session(host, bs=block_size, depots=depots,
-                                                        **{"viz_url": self._viz})
-                xfer = sess.download
-        
-                diff, res = xfer(href, None)
+            try:
+                sess = libdlt.Session(self._unis, bs=block_size, depots=depots,
+                                      **{"viz_url": self._viz})
+                diff, dsize, res = sess.download(href, None, progress_cb=progress)
                 print ("{0} ({1} {2:.2f} MB/s) {3}".format(res.name, res.size,
                                                            res.size/1e6/diff,
                                                            res.selfRef))
@@ -97,7 +103,7 @@ def main ():
     args = parseArgs(desc="EODN-IDMS Subscription Tool",
                      ptype=common.PARSER_TYPE_PUBSUB)
     rq = ExnodePUBSUBQuery(args)
-    listener = Listener(rq, args.visualize,
+    listener = Listener(rq, args.url, args.visualize,
                         args.verbose, args.list)
 
     while True:
