@@ -16,7 +16,7 @@ setup(
     install_requires=[
         "setuptools",
         "lace",
-        "rados-client",
+        "rados",
         "unisrt",
         "uritools",
         "jsonschema",
@@ -27,7 +27,7 @@ setup(
     dependency_links=[
         "git+https://github.com/periscope-ps/lace.git/@master#egg=lace",
         "git+https://github.com/periscope-ps/unisrt.git/@develop#egg=unisrt",
-        "git+https://github.com/mihu/python3-rados.git#egg=rados-client",
+        "git+https://github.com/mihu/python3-rados.git#egg=rados",
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",

@@ -18,7 +18,7 @@ mkdir -p ${RPM_DIR}
 declare -A PKG_MAP
 PKG_MAP=( ["unisrt"]="git+https://github.com/periscope-ps/unisrt.git"
           ["lace"]="git+https://github.com/periscope-ps/lace.git"
-          ["rados-client"]="git+https://github.com/mihu/python3-rados.git" )
+          ["rados"]="git+https://github.com/mihu/python3-rados.git" )
 
 REQS="${!PKG_MAP[@]} `cat requirements.txt`"
 
@@ -32,6 +32,7 @@ for PKG in ${REQS}; do
     URL=`echo $FPKG | awk -F'+' '{print $2}'`
     git clone ${URL} ${SRC_DIR}/${PKG}
     FPKG=$PKG
+    if [ "$FPKG" == "rados" ]; then PKG="rados-client"; fi
   else
     FILE=`find ${SRC_DIR} -maxdepth 1 -type f -name ${FPKG}*`
     if [ -z $FILE ]; then
@@ -51,4 +52,4 @@ for PKG in ${REQS}; do
   ${FPM_EXEC} -n ${PKG_PREFIX}-${PKG} ${BASE}/setup.py
 done
 
-${FPM_EXEC} -d python34-setuptools setup.py
+${FPM_EXEC} -d python34-setuptools -d python34-rados-client setup.py
