@@ -1,4 +1,4 @@
-from rados.core import Cluster
+from libdlt.protocol.ceph.rados.core import Cluster
 
 from libdlt.logging import debug, info
 
