@@ -3,10 +3,12 @@
 .. image:: _static/CREST.png
      :align: center
 
-DLT Tools
-==================
+DLT Library and Tools
+=====================
 
 .. toctree::
    :maxdepth: 2
 
-   getting_started.rst
+   start.rst
+   tools.rst
+
