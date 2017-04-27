@@ -5,7 +5,7 @@ import urllib
 import requests
 
 # http://stackoverflow.com/questions/3173320/text-progress-bar-in-the-console/34325723#34325723
-def print_progress(iteration, total, prefix='', suffix='', decimals=1, bar_length=80):
+def print_progress(iteration, total, prefix='', suffix='', decimals=1, bar_length=80, fill='='):
     """
     Call in a loop to create terminal progress bar
 
@@ -20,7 +20,7 @@ def print_progress(iteration, total, prefix='', suffix='', decimals=1, bar_lengt
     str_format = "{0:." + str(decimals) + "f}"
     percents = str_format.format(100 * (iteration / float(total)))
     filled_length = int(round(bar_length * iteration / float(total)))
-    bar = '█' * filled_length + '-' * (bar_length - filled_length)
+    bar = fill * filled_length + '-' * (bar_length - filled_length)
 
     sys.stdout.write('\r%s |%s| %s%s %s' % (prefix, bar, percents, '%', suffix)),
 

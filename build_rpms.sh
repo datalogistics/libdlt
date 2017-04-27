@@ -17,11 +17,12 @@ mkdir -p ${RPM_DIR}
 
 declare -A PKG_MAP
 PKG_MAP=( ["unisrt"]="git+https://github.com/periscope-ps/unisrt.git"
-          ["lace"]="git+https://github.com/periscope-ps/lace.git"
-          ["rados"]="git+https://github.com/mihu/python3-rados.git" )
+          ["lace"]="git+https://github.com/periscope-ps/lace.git" )
+
+REQS="${!PKG_MAP[@]} `cat requirements.txt`"
 
 pip3 download -r requirements.txt --no-deps --no-binary :all: -d ${SRC_DIR}
-for PKG in `cat requirements.txt`; do
+for PKG in ${REQS}; do
   FPKG=$PKG
   if [ -n "${PKG_MAP[$PKG]}" ]; then FPKG=${PKG_MAP[$PKG]}; fi
 
@@ -49,4 +50,4 @@ for PKG in `cat requirements.txt`; do
   ${FPM_EXEC} -n ${PKG_PREFIX}-${PKG} ${BASE}/setup.py
 done
 
-${FPM_EXEC} setup.py
+${FPM_EXEC} -d python34-setuptools setup.py

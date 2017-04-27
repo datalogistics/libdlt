@@ -10,12 +10,14 @@ setup(
     license = "BSD",
     keywords = "DLT libdlt tools",
     url = "https://github.com/datalogistics/libdlt",
-    packages=['libdlt', 'libdlt.util', 'libdlt.protocol', 'libdlt.protocol.ceph', 'libdlt.protocol.ibp', 'tools'],
+    packages=['libdlt', 'libdlt.util', 'libdlt.protocol', 'libdlt.protocol.ceph',
+              'libdlt.protocol.ceph.rados', 'libdlt.protocol.ibp', 'tools'],
     package_data={'tools' : ['*.py']},
     include_package_data = True,
     install_requires=[
+        "setuptools",
         "lace",
-        "rados",
+#        "rados",
         "unisrt",
         "uritools",
         "jsonschema",
@@ -26,7 +28,7 @@ setup(
     dependency_links=[
         "git+https://github.com/periscope-ps/lace.git/@master#egg=lace",
         "git+https://github.com/periscope-ps/unisrt.git/@develop#egg=unisrt",
-        "git+https://github.com/mihu/python3-rados.git#egg=rados",
+#        "git+https://github.com/mihu/python3-rados.git#egg=rados",
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",
