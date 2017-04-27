@@ -6,6 +6,7 @@ import time
 import types
 import uuid
 
+from contextlib import contextmanager
 from itertools import cycle
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from uritools import urisplit
@@ -308,6 +309,15 @@ class Session(object):
             self._runtime.flush()
         
         return root
+    
+    @info("Session")
+    @contextmanager
+    def annotate(self, ex):
+        store = ex.isAutoCommit()
+        ex.setAutoCommit(True)
+        yield ex
+        ex.setAutoCommit(store)
+        self._runtime.flush()
     
     @debug("Session")
     def _validate_url(self, url):
