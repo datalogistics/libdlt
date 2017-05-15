@@ -35,9 +35,9 @@ class Allocation(IBPExtent):
         self.managecap  = None
         
         if data:
-            self.SetReadCapability(self.mapping.read)
-            self.SetWriteCapability(self.mapping.write)
-            self.SetManageCapability(self.mapping.manage)
+            self.setReadCapability(self.mapping.read)
+            self.setWriteCapability(self.mapping.write)
+            self.setManageCapability(self.mapping.manage)
         
     def getStartTime(self):
         return datetime.strptime(self.lifetimes.start, "%Y-%m-%d %H:%M:%S")
@@ -51,16 +51,16 @@ class Allocation(IBPExtent):
     def setEndTime(self, dt):
         self.lifetime.end = dt.strftime("%Y-%m-%d %H:%M:%S")
         
-    def GetReadCapability(self):
+    def getReadCapability(self):
         return self.readcap
         
-    def GetWriteCapability(self):
+    def getWriteCapability(self):
         return self.writecap
         
-    def GetManageCapability(self):
+    def getManageCapability(self):
         return self.managecap
         
-    def SetReadCapability(self, read):
+    def setReadCapability(self, read):
         try:
             tmpCap = Capability(read)
         except ValueError as exp:
@@ -69,7 +69,7 @@ class Allocation(IBPExtent):
         self.mapping.read = str(tmpCap)
         self.readcap = tmpCap
         
-    def SetWriteCapability(self, write):
+    def setWriteCapability(self, write):
         try:
             tmpCap = Capability(write)
         except ValueError as exp:
@@ -78,7 +78,7 @@ class Allocation(IBPExtent):
         self.mapping.write = str(tmpCap)
         self.writecap = tmpCap
 
-    def SetManageCapability(self, manage):
+    def setManageCapability(self, manage):
         try:
             tmpCap = Capability(manage)
         except ValueError as exp:

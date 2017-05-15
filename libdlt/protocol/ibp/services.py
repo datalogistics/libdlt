@@ -15,7 +15,7 @@ import argparse
 import socket
 import logging
 
-from .settings import DEFAULT_PASSWORD, DEFAULT_TIMEOUT, DEFAULT_DURATION
+from libdlt.protocol.ibp.settings import DEFAULT_PASSWORD, DEFAULT_TIMEOUT, DEFAULT_DURATION, DEFAULT_MAXSIZE
 from libdlt.logging import debug, info
 from libdlt.protocol.ibp import flags, allocation
 from libdlt.protocol.ibp.flags import print_error
@@ -61,7 +61,7 @@ class ProtocolService(object):
                 return None
             result = result.split(" ")
         except Exception as exp:
-            self._log.warn("IBPProtocol.GetStatus: Failed to get the status of {host}:{port} - {err}".format(err = exp, **address))
+            self._log.warn("IBPProtocol.getStatus: Failed to get the status of {host}:{port} - {err}".format(err = exp, host=depot.host, port=depot.port))
             return None
             
         return dict(zip(["total", "used", "volatile", "used-volatile", "max-duration"], result))
@@ -109,7 +109,7 @@ class ProtocolService(object):
             mode = kwargs["mode"]
             
         try:
-            cap = alloc.GetManageCapability()
+            cap = alloc.getManageCapability()
             tmpCommand = "{0} {1} {2} {3} {4} {5} {6} {7} {8} {9}\n".format(flags.IBPv031,
                                                                             flags.IBP_MANAGE,
                                                                             cap.key,
@@ -142,7 +142,7 @@ class ProtocolService(object):
     '''
     @info("IBP.ProtocolService")
     def probe(self, alloc, **kwargs):
-        results = self.Manage(alloc, mode = flags.IBP_PROBE, **kwargs)
+        results = self.manage(alloc, mode = flags.IBP_PROBE, **kwargs)
         if not results:
             return None
         
@@ -173,7 +173,7 @@ class ProtocolService(object):
         cap_type    = flags.IBP_BYTEARRAY
         timeout     = DEFAULT_TIMEOUT
         duration    = DEFAULT_DURATION
-
+        
         if "reliability" in kwargs:
             reliability = kwargs["reliability"]
         if "type" in kwargs:
@@ -196,11 +196,11 @@ class ProtocolService(object):
         if result[0].startswith("-"):
             self._log.warn("IBPProtocol.Allocate: Failed to allocate resource - {err}".format(err = print_error(result[0])))
         
-
+        
         alloc = allocation.Allocation()
-        alloc.SetReadCapability(result[0])
-        alloc.SetWriteCapability(result[1])
-        alloc.SetManageCapability(result[2])
+        alloc.setReadCapability(result[0])
+        alloc.setWriteCapability(result[1])
+        alloc.setManageCapability(result[2])
         
         alloc.setStartTime(datetime.datetime.utcnow())
         alloc.setEndTime(datetime.datetime.utcnow() + datetime.timedelta(seconds = duration))
@@ -217,28 +217,28 @@ class ProtocolService(object):
     
     # Below are several shorthand versions of Allocate for hard and soft allocations of various types.
     def allocateSoftByteArray(self, depot, size, **kwargs):
-        return self.Allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_BYTEARRAY, **kwargs)
+        return self.allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_BYTEARRAY, **kwargs)
 
     def allocateHardByteArray(self, depot, size, **kwargs):
-        return self.Allocate(depot, size, reliability = flags.IBP_HARD, type = flags.IBP_BYTEARRAY, **kwargs)
+        return self.allocate(depot, size, reliability = flags.IBP_HARD, type = flags.IBP_BYTEARRAY, **kwargs)
 
     def allocateSoftBuffer(self, depot, size, **kwargs):
-        return self.Allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_BUFFER, **kwargs)
+        return self.allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_BUFFER, **kwargs)
     
     def allocateHardBuffer(self, depot, size, **kwargs):
-        return self.Allocate(depot, size, reliability = flags.IBP_HARD, type = flags.IBP_BUFFER, **kwargs)
+        return self.allocate(depot, size, reliability = flags.IBP_HARD, type = flags.IBP_BUFFER, **kwargs)
 
     def allocateSoftFifo(self, depot, size, **kwargs):
-        return self.Allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_FIFO, **kwargs)
+        return self.allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_FIFO, **kwargs)
 
     def allocateHardFifo(self, depot, size, **kwargs):
-        return self.Allocate(depot, size, reliability = flags.IBP_HARD, type = flags.IBO_FIFO, **kwargs)
+        return self.allocate(depot, size, reliability = flags.IBP_HARD, type = flags.IBO_FIFO, **kwargs)
 
     def allocateSoftCirq(self, depot, size, **kwargs):
-        return self.Allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_CIRQ, **kwargs)
+        return self.allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_CIRQ, **kwargs)
 
     def allocateHardCirq(self, depot, size, **kwargs):
-        return self.Allocate(depot, size, reliability = flags.IBP_HARD, typ = flags.IBP_CIRQ, **kwargs)
+        return self.allocate(depot, size, reliability = flags.IBP_HARD, typ = flags.IBP_CIRQ, **kwargs)
 
 
 
@@ -265,7 +265,7 @@ class ProtocolService(object):
         if "duration" in kwargs:
             duration = kwargs["duration"]
         
-        cap = alloc.GetWriteCapability()
+        cap = alloc.getWriteCapability()
         
         try:
             tmpCommand = "{0} {1} {2} {3} {4} {5}\n".format(flags.IBPv031, flags.IBP_STORE, cap.key, cap.wrmKey, size, timeout)
@@ -308,10 +308,10 @@ class ProtocolService(object):
             duration = kwargs["duration"]
         if "offset" in kwargs:
             offset = kwars["offset"]
-        size = kwargs.get("size", source.depotSize)
+        size = kwargs.get("size", source.size)
 
-        src_cap  = source.GetReadCapability()
-        dest_cap = destination.GetWriteCapability()
+        src_cap  = source.getReadCapability()
+        dest_cap = destination.getWriteCapability()
         
     # Generate move request with the following form
     # IBPv040[1] IBP_SEND[5] src_read_key src_WRMKey dest_write_cap offset size timeout timeout timeout
@@ -322,7 +322,7 @@ class ProtocolService(object):
                                                                                                                                  dest    = str(dest_cap),
                                                                                                                                  keytype = src_cap.wrmKey,
                                                                                                                                  offset  = offset,
-                                                                                                                                 size    = source.depotSize,
+                                                                                                                                 size    = size,
                                                                                                                                  timeout = timeout)
             result = self._dispatch_command(source.depot, tmpCommand)
             if not result:
@@ -360,7 +360,7 @@ class ProtocolService(object):
         if "offset" in kwargs:
             offset = kwargs["offset"]
             
-        cap = alloc.GetReadCapability()
+        cap = alloc.getReadCapability()
         
         try:
             tmpCommand = "{version} {command} {key} {wrmkey} {offset} {length} {timeout} \n".format(version = flags.IBPv031, 
@@ -390,7 +390,7 @@ class ProtocolService(object):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(10)
         sock.connect((depot.host, port))
-
+        
         if isinstance(command, str):
             command = command.encode()
         
@@ -433,7 +433,8 @@ class ProtocolService(object):
 
         if isinstance(command, str):
             command = command.encode()
-        
+        if isinstance(data, str):
+            data = data.encode()
         try:
             sock.send(command)
             response = sock.recv(1024)
@@ -490,13 +491,14 @@ class ProtocolService(object):
         return response
 
 
-def UnitTests():
-    depot1 = { "host": "dresci.incntre.iu.edu", "port": 6714 }
-    depot2 = { "host": "ibp1.crest.iu.edu", "port": 6714 }
+def UnitTests(): 
+    from libdlt.depot import Depot
+    depot1 = Depot("ibp://dresci.incntre.iu.edu:6714")
+    depot2 = Depot("ibp://ibp2.crest.iu.edu:6714")
     service = ProtocolService()
     
-    status1 = service.GetStatus(depot1)
-    status2 = service.GetStatus(depot2)
+    status1 = service.getStatus(depot1)
+    status2 = service.getStatus(depot2)
     
     assert status1 and status2
     print("Dresci: {status}".format(status = status1))
@@ -504,44 +506,44 @@ def UnitTests():
     
     data = """Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Vestibulum tortor quam, feugiat vitae, ultricies eget, tempor sit amet, ante. Donec eu libero sit amet quam egestas semper. Aenean ultricies mi vitae est. Mauris placerat eleifend leo. Quisque sit amet est et sapien ullamcorper pharetra. Vestibulum erat wisi, condimentum sed, commodo vitae, ornare sit amet, wisi. Aenean fermentum, elit eget tincidunt condimentum, eros ipsum rutrum orci, sagittis tempus lacus enim ac dui. Donec non enim in turpis pulvinar facilisis. Ut felis. Praesent dapibus, neque id cursus faucibus, tortor neque egestas augue, eu vulputate magna eros eu erat. Aliquam erat volutpat. Nam dui mi, tincidunt quis, accumsan porttitor, facilisis luctus, metus"""
     
-    first_alloc = service.Allocate(depot1, len(data))
-    second_alloc = service.Allocate(depot2, len(data))
+    first_alloc = service.allocate(depot1, 0, len(data))
+    second_alloc = service.allocate(depot2, 0, len(data))
     
     assert first_alloc and second_alloc
     
-    alloc_status1 = service.Probe(first_alloc)
-    alloc_status2 = service.Probe(second_alloc)
+    alloc_status1 = service.probe(first_alloc)
+    alloc_status2 = service.probe(second_alloc)
     
     assert alloc_status1 and alloc_status2
     print("Alloc1: {status}".format(status = alloc_status1))
     print("Alloc2: {status}\n".format(status = alloc_status2))
     
-    duration = service.Store(first_alloc, data, len(data))
+    duration = service.store(first_alloc, data, len(data))
     
     assert duration
-
-    is_ok = service.Manage(first_alloc, duration = 300)
-
-    print(service.Probe(first_alloc))
+    
+    is_ok = service.manage(first_alloc, duration = 300)
+    
+    print(service.probe(first_alloc))
     
     assert is_ok
     
-#    duration2 = service.Send(first_alloc, second_alloc)
+    duration2 = service.send(first_alloc, second_alloc)
     
-#    assert duration2
+    assert duration2
     
-#    new_status1 = service.Probe(first_alloc)
-#    new_status2 = service.Probe(second_alloc)
+    new_status1 = service.probe(first_alloc)
+    new_status2 = service.probe(second_alloc)
     
 #    assert new_status1 and new_status2
-#    print "Alloc1 (new): {status}".format(status = new_status1)
-#    print "Alloc2 (new): {status}\n".format(status = new_status2)
-
-#    data_out = service.Load(second_alloc)
-
-#    assert data_out
-
-#    print data_out
-
+    print("Alloc1 (new): {status}".format(status = new_status1))
+    print("Alloc2 (new): {status}\n".format(status = new_status2))
+    
+    data_out = service.load(second_alloc)
+    
+    assert data_out
+    
+    print(data_out)
+    
 if __name__ == "__main__":
     UnitTests()
