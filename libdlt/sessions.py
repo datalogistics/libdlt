@@ -84,7 +84,7 @@ class Session(object):
                 sock.emit(self.__WS_MTYPE['r'], msg)
                 return uid, sock
             except Exception as e:
-                self.log.warn("Session.__init__: websocket connection failed: {}".format(e))
+                self.log.warn(e)
         return None
             
     @trace.debug("Session")
@@ -181,7 +181,7 @@ class Session(object):
                     raise Exception("Unkown depot {}".format(d.endpoint))
                 return ext, alloc.read(**self._depots[d.endpoint].to_JSON())
             except Exception as exp:
-                pass
+                self.log.warn(exp)
             return ext, False
         self._validate_url(href)
         ex = self._runtime.find(href)
