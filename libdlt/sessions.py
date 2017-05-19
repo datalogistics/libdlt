@@ -166,7 +166,7 @@ class Session(object):
         return (time_e - time_s, ex.size, ex)
     
     @trace.info("Session")
-    def download(self, href, filepath, length=0, offset=0, schedule=BaseDownloadSchedule(), progress_cb=None):
+    def download(self, href, filepath=None, length=0, offset=0, schedule=BaseDownloadSchedule(), progress_cb=None):
         def offsets(size):
             i = 0
             while i < size:

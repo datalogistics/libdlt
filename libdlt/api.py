@@ -5,7 +5,7 @@ from urllib import parse
 from libdlt.sessions import Session
 
 @trace.info("API")
-def download(href, filename, length=0, offset=0, timeout=180, **kwargs):
+def download(href, filename=None, length=0, offset=0, timeout=180, **kwargs):
     url, uid = _validate_url(href)
     session = Session(url, depots=None, timeout=timeout, **kwargs)
     return session.download(url, filename, length, offset)
