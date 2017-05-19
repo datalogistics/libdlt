@@ -1,9 +1,9 @@
 import json
-import logging
 
 import libdlt.protocol.ibp.factory as ibp
 import libdlt.protocol.ceph.factory as ceph
-from libdlt.logging import info
+from lace import logging
+from lace.logging import trace
 from libdlt.protocol.ibp.allocation import IBP_EXTENT_URI
 from libdlt.protocol.ceph.allocation import CEPH_EXTENT_URI
 
@@ -19,7 +19,7 @@ SCHEMA_MAP = {
     IBP_EXTENT_URI: ibp
 }
 
-@info("factory")
+@trace.info("factory")
 def buildAllocation(json):
     if type(json) is str:
         try:
@@ -34,6 +34,6 @@ def buildAllocation(json):
         schema = json["schema"]
     return SCHEMA_MAP[schema].buildAllocation(json)
 
-@info("factory")
+@trace.info("factory")
 def makeAllocation(data, offset, depot, **kwds):
     return PROTOCOL_MAP[depot.scheme].makeAllocation(data, offset, depot, **kwds)

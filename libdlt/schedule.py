@@ -1,7 +1,8 @@
 import abc
-from itertools import cycle
 
-from libdlt.logging import info
+from itertools import cycle
+from lace.logging import trace
+
 
 class AbstractSchedule(metaclass=abc.ABCMeta):
     @abc.abstractmethod
@@ -25,14 +26,16 @@ class AbstractSchedule(metaclass=abc.ABCMeta):
     
 
 class BaseUploadSchedule(AbstractSchedule):
+    @trace.info("BaseUploadSchedule")
     def setSource(self, source):
         self._ls = cycle(source)
 
+    @trace.info("BaseUploadSchedule")
     def get(self, context={}):
         return next(self._ls)
 
 class BaseDownloadSchedule(AbstractSchedule):
-    @info("BaseDownloadSchedule")
+    @trace.info("BaseDownloadSchedule")
     def setSource(self, source):
         chunks = {}
         for ext in source:
@@ -41,7 +44,7 @@ class BaseDownloadSchedule(AbstractSchedule):
             chunks[ext.offset].append(ext)
         self._ls = chunks
         
-    @info("BaseDownloadSchedule")
+    @trace.info("BaseDownloadSchedule")
     def get(self, context={}):
         offset = context["offset"]
         if offset in self._ls and self._ls[offset]:

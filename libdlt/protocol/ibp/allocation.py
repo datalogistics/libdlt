@@ -11,22 +11,22 @@ that can be used to access data on an IBP
 depot.
 '''
 
-
 from datetime import datetime
+from lace import logging
+from lace.logging import trace
 
 from unis.models import Lifetime, schemaLoader
 from libdlt.depot import Depot
-from libdlt.logging import getLogger, debug
 
 IBP_EXTENT_URI = "http://unis.crest.iu.edu/schema/exnode/ext/1/ibp#"
 
 IBPExtent = schemaLoader.get_class(IBP_EXTENT_URI)
 
 class Allocation(IBPExtent):
-    @debug("IBP.Allocation")
+    @trace.debug("IBP.Allocation")
     def initialize(self, data={}):
         super(Allocation, self).initialize(data)
-        self.log       = getLogger()
+        self.log       = logging.getLogger()
         self.timestamp  = 0
         self.depot      = Depot(self.location) if hasattr(self, "location") else None
         self.lifetime   = Lifetime()

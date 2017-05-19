@@ -8,13 +8,14 @@ import uuid
 
 from contextlib import contextmanager
 from itertools import cycle
+from lace import logging
+from lace.logging import trace
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from uritools import urisplit
 from socketIO_client import SocketIO
 
 from libdlt.util import util
 from libdlt.depot import Depot
-from libdlt.logging import getLogger, debug, info
 from libdlt.protocol import factory
 from libdlt.schedule import BaseDownloadSchedule, BaseUploadSchedule
 from libdlt.settings import DEPOT_TYPES, THREADS, COPIES, BLOCKSIZE, TIMEOUT
@@ -33,7 +34,7 @@ class Session(object):
         '10.10.1.1': 'mon1.apt.emulab.net'
     }
     
-    @debug("Session")
+    @trace.debug("Session")
     def __init__(self, url, depots, bs=BLOCKSIZE, timeout=TIMEOUT, threads=THREADS, **kwargs):
         self._validate_url(url)
         self._runtime = Runtime(url, defer_update=True, auto_sync=False, subscribe=False, inline=True)
@@ -45,7 +46,7 @@ class Session(object):
         self._depots = {}
         self._threads = threads
         self._viz = kwargs.get("viz_url", None)
-        self.log = getLogger()
+        self.log = logging.getLogger()
         
         if not depots:
             for depot in self._runtime.services.where(lambda x: x.serviceType in DEPOT_TYPES):
@@ -65,7 +66,7 @@ class Session(object):
         if not len(self._depots):
             raise ValueError("No depots found for session, unable to continue")
     
-    @debug("Session")
+    @trace.debug("Session")
     def _viz_register(self, name, size, conns, cb):
         if cb:
             cb(None, name, size, 0, 0)
@@ -86,7 +87,7 @@ class Session(object):
                 self.log.warn("Session.__init__: websocket connection failed: {}".format(e))
         return None
             
-    @debug("Session")
+    @trace.debug("Session")
     def _viz_progress(self, sock, name, tsize, depot, size, offset, cb):
         if cb:
             cb(depot, name, tsize, size, offset)
@@ -110,7 +111,7 @@ class Session(object):
     #  Upload assumes sucessful push to all depots
     #  Needs better success/failure metrics
     ##############
-    @info("Session")
+    @trace.info("Session")
     def upload(self, filepath, folder=None, copies=COPIES, duration=None, schedule=BaseUploadSchedule(), progress_cb=None):
         def _chunked(fh, bs, size):
             offset = 0
@@ -164,7 +165,7 @@ class Session(object):
             self._runtime.flush()
         return (time_e - time_s, ex.size, ex)
     
-    @info("Session")
+    @trace.info("Session")
     def download(self, href, filepath, length=0, offset=0, schedule=BaseDownloadSchedule(), progress_cb=None):
         def offsets(size):
             i = 0
@@ -214,7 +215,7 @@ class Session(object):
         
         return (time.time() - time_s, dsize, ex)
         
-    @info("Session")
+    @trace.info("Session")
     def copy(self, href, duration=None, download_schedule=BaseDownloadSchedule(), upload_schedule=BaseUploadSchedule()):
         def offsets(size):
             i = 0
@@ -263,7 +264,7 @@ class Session(object):
             self._runtime.flush()
         return (time_e - time_s, ex)
         
-    @info("Session")
+    @trace.info("Session")
     def mkdir(self, path):
         def _traverse(ls, obj):
             if not ls:
@@ -310,7 +311,7 @@ class Session(object):
         
         return root
     
-    @info("Session")
+    @trace.info("Session")
     @contextmanager
     def annotate(self, ex):
         store = ex.isAutoCommit()
@@ -319,7 +320,7 @@ class Session(object):
         ex.setAutoCommit(store)
         self._runtime.flush()
     
-    @debug("Session")
+    @trace.debug("Session")
     def _validate_url(self, url):
         regex = re.compile(
             r'^(?:http)s?://'
