@@ -196,7 +196,6 @@ class ProtocolService(object):
         if result[0].startswith("-"):
             self._log.warn("IBPProtocol.Allocate: Failed to allocate resource - {err}".format(err = print_error(result[0])))
         
-        
         alloc = allocation.Allocation()
         alloc.setReadCapability(result[0])
         alloc.setWriteCapability(result[1])

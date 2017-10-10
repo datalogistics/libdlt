@@ -112,7 +112,7 @@ class Session(object):
     #  Needs better success/failure metrics
     ##############
     @trace.info("Session")
-    def upload(self, filepath, folder=None, copies=COPIES, duration=None, schedule=BaseUploadSchedule(), progress_cb=None):
+    def upload(self, filepath, folder=None, copies=COPIES, schedule=BaseUploadSchedule(), progress_cb=None):
         def _chunked(fh, bs, size):
             offset = 0
             while True:
@@ -149,7 +149,7 @@ class Session(object):
             for offset, size, data in _chunked(fh, self._blocksize, ex.size):
                 for n in range(copies):
                     d = Depot(schedule.get({"offset": offset, "size": size, "data": data}))
-                    futures.append(executor.submit(factory.makeAllocation, data, offset, d, duration=duration,
+                    futures.append(executor.submit(factory.makeAllocation, data, offset, d,
                                                    **self._depots[d.endpoint].to_JSON()))
                     
         for future in as_completed(futures):
@@ -216,7 +216,7 @@ class Session(object):
         return (time.time() - time_s, dsize, ex)
         
     @trace.info("Session")
-    def copy(self, href, duration=None, download_schedule=BaseDownloadSchedule(), upload_schedule=BaseUploadSchedule()):
+    def copy(self, href, download_schedule=BaseDownloadSchedule(), upload_schedule=BaseUploadSchedule()):
         def offsets(size):
             i = 0
             while i < size:
