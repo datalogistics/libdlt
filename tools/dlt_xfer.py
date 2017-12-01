@@ -76,7 +76,8 @@ def main():
             print ("ERROR: Could not read depot file: {}".format(e))
             exit(1)
 
-    sess = libdlt.Session(args.host, bs=bs, depots=depots, threads=args.threads,
+    sess = libdlt.Session([{"default": True, "url": args.host}],
+                          bs=bs, depots=depots, threads=args.threads,
                           **{"viz_url": args.visualize})
     xfer = sess.upload if args.upload else sess.download
         

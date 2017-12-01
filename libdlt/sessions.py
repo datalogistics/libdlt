@@ -36,7 +36,6 @@ class Session(object):
     
     @trace.debug("Session")
     def __init__(self, url, depots, bs=BLOCKSIZE, timeout=TIMEOUT, threads=THREADS, **kwargs):
-        self._validate_url(url)
         self._runtime = Runtime(url, defer_update=True, auto_sync=False, subscribe=False, inline=True)
         self._runtime.exnodes.createIndex("name")
         self._do_flush = True
@@ -52,7 +51,6 @@ class Session(object):
             for depot in self._runtime.services.where(lambda x: x.serviceType in DEPOT_TYPES):
                 self._depots[depot.selfRef] = depot
         elif isinstance(depots, str):
-            self._validate_url(depots)
             with Runtime(depots, auto_sync=False, subscribe=False) as rt:
                 for depot in rt.services.where(lambda x: x.serviceType in DEPOT_TYPES):
                     self._depots[depot.selfRef] = depot
@@ -183,7 +181,6 @@ class Session(object):
             except Exception as exp:
                 self.log.warn(exp)
             return ext, False
-        self._validate_url(href)
         ex = self._runtime.find(href)
         allocs = ex.extents
         schedule.setSource(allocs)
@@ -241,7 +238,6 @@ class Session(object):
                 return ext, False
             return _f
                 
-        self._validate_url(href)
         ex = self._runtime.find(href)
         allocs = ex.extents
         futures = []
@@ -320,20 +316,6 @@ class Session(object):
         ex.setAutoCommit(store)
         self._runtime.flush()
     
-    @trace.debug("Session")
-    def _validate_url(self, url):
-        regex = re.compile(
-            r'^(?:http)s?://'
-            r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'
-            r'[a-zA-Z0-9-]{0,61}|'
-            r'localhost|'
-            r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'
-            r'(?::\d+)?'
-            r'(?:/?|[/?]\S+)$', re.IGNORECASE)
-        
-        if not regex.match(url):
-            raise ValueError("invalid url - {u}".format(u=url))
-            
     def __enter__(self):
         pass
 

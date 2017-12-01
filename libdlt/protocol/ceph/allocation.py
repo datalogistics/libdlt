@@ -1,4 +1,4 @@
-from unis.models.models import schemaLoader
+from unis.models import schemaLoader
 
 CEPH_EXTENT_URI="http://unis.crest.iu.edu/schema/exnode/ext/1/ceph#"
 
