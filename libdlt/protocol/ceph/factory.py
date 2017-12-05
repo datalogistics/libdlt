@@ -53,7 +53,7 @@ class CephAdaptor(object):
         return ceph.read(parts[1], parts[2], size, **kwds)
     
     @trace.info("CephAdaptor")
-    def copy(self, depot, src_kwds, dst_kwds):
+    def copy(self, depot, src_kwds, dst_kwds, **kwargs):
         dst_alloc = CephExtent()
         dst_oid = str(uuid.uuid4())
         pool = dst_kwds.get('pool', 'dlt')

@@ -110,7 +110,7 @@ class Session(object):
     #  Needs better success/failure metrics
     ##############
     @trace.info("Session")
-    def upload(self, filepath, folder=None, copies=COPIES, schedule=BaseUploadSchedule(), progress_cb=None):
+    def upload(self, filepath, folder=None, copies=COPIES, schedule=BaseUploadSchedule(), progress_cb=None, **kwargs):
         def _chunked(fh, bs, size):
             offset = 0
             while True:
@@ -148,7 +148,7 @@ class Session(object):
                 for n in range(copies):
                     d = Depot(schedule.get({"offset": offset, "size": size, "data": data}))
                     futures.append(executor.submit(factory.makeAllocation, data, offset, d,
-                                                   **self._depots[d.endpoint].to_JSON()))
+                                                   **self._depots[d.endpoint].to_JSON(), **kwargs))
                     
         for future in as_completed(futures):
             ext = future.result().getMetadata()
@@ -213,7 +213,7 @@ class Session(object):
         return (time.time() - time_s, dsize, ex)
         
     @trace.info("Session")
-    def copy(self, href, download_schedule=BaseDownloadSchedule(), upload_schedule=BaseUploadSchedule()):
+    def copy(self, href, download_schedule=BaseDownloadSchedule(), upload_schedule=BaseUploadSchedule(), **kwargs):
         def offsets(size):
             i = 0
             while i < size:
@@ -228,7 +228,7 @@ class Session(object):
                     dest_desc = Depot(upload_schedule.get({"offset": ext.offset, "size": ext.size}))
                     src_depot = self._depots[src_desc.endpoint]
                     dest_depot = self._depots[dest_desc.endpoint]
-                    dst_alloc = alloc.copy(dest_desc, src_depot.to_JSON(), dest_depot.to_JSON())
+                    dst_alloc = alloc.copy(dest_desc, src_depot.to_JSON(), dest_depot.to_JSON(), **kwargs)
                     dst_ext = dst_alloc.getMetadata()
                     self._viz_progress(sock_down, ext.location, ext.size, ext.offset)
                     self._viz_progress(sock_up, dst_ext.location, dst_ext.size, dst_ext.offset)

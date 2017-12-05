@@ -83,7 +83,7 @@ class IBPAdaptor(object):
         return True
         
     @trace.info("IBPAdaptor")
-    def copy(self, destination, **kwds):
+    def copy(self, destination, src_kwargs, dst_kwargs, **kwds):
         host   = self._allocation.host
         port   = self._allocation.port
         offset = kwds.get("offset", 0)
