@@ -6,6 +6,7 @@ from lace import logging
 from lace.logging import trace
 from libdlt.protocol.ibp.allocation import IBP_EXTENT_URI
 from libdlt.protocol.ceph.allocation import CEPH_EXTENT_URI
+from libdlt.protocol.rdma.allocation import RDMA_EXTENT_URI
 
 from unis.models import Extent
 
