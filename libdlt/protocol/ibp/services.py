@@ -182,7 +182,7 @@ class ProtocolService(object):
             duration = kwargs["duration"]
         if "timeout" in kwargs:
             timeout = kwargs["timeout"]
-
+            
         try:
             tmpCommand = "{0} {1} {2} {3} {4} {5} {6} \n".format(flags.IBPv031, flags.IBP_ALLOCATE, reliability, cap_type, duration, size, timeout)
             result = self._dispatch_command(depot, tmpCommand)
@@ -190,12 +190,12 @@ class ProtocolService(object):
                 return None
             result = result.split(" ")[1:]
         except Exception as exp:
-            self._log.warn("IBPProtocol.Allocate: Could not connect to {d} - {err}".format(err = exp, d = depot))
+            self._log.warn("IBPProtocol.Allocate: Could not connect to {d} - {err}".format(err = exp, d = depot.endpoint))
             return None
-
+            
         if result[0].startswith("-"):
             self._log.warn("IBPProtocol.Allocate: Failed to allocate resource - {err}".format(err = print_error(result[0])))
-        
+            
         alloc = allocation.Allocation()
         alloc.setReadCapability(result[0])
         alloc.setWriteCapability(result[1])
@@ -203,7 +203,7 @@ class ProtocolService(object):
         
         alloc.setStartTime(datetime.datetime.utcnow())
         alloc.setEndTime(datetime.datetime.utcnow() + datetime.timedelta(seconds = duration))
-
+        
         alloc.depot = depot
         alloc.location = depot.endpoint
         alloc.offset = offset
@@ -258,7 +258,7 @@ class ProtocolService(object):
         depot = alloc.depot
         timeout  = DEFAULT_TIMEOUT
         duration = DEFAULT_DURATION
-
+        
         if "timeout" in kwargs:
             timeout = kwargs["timeout"]
         if "duration" in kwargs:
@@ -300,7 +300,7 @@ class ProtocolService(object):
         timeout     = DEFAULT_TIMEOUT
         duration    = DEFAULT_DURATION
         offset      = 0
-
+        
         if "timeout" in kwargs:
             timeout = kwargs["timeout"]
         if "duration" in kwargs:
@@ -308,9 +308,9 @@ class ProtocolService(object):
         if "offset" in kwargs:
             offset = kwars["offset"]
         size = kwargs.get("size", source.size)
-
         src_cap  = source.getReadCapability()
-        dest_cap = destination.getWriteCapability()
+        dest_cap = destination._allocation.getWriteCapability()
+        dest_cap = "{}/{}/{}/{}".format(destination._allocation.depot.endpoint, dest_cap.key, dest_cap.wrmKey, dest_cap.code)
         
     # Generate move request with the following form
     # IBPv040[1] IBP_SEND[5] src_read_key src_WRMKey dest_write_cap offset size timeout timeout timeout
@@ -330,9 +330,10 @@ class ProtocolService(object):
         except Exception as exp:
             self._log.warn("IBPProtocol.Send [{alloc}]: Could not connect to {host1}:{port1} - {e}".format(alloc = alloc.id, host1 = source.host, port1 = source.port, e = exp))
             return None
-
+        
         if result[0].startswith("-"):
-            self._log.warn("IBPProtocol.Send [{alloc}]: Failed to move allocation - {err}".format(alloc = alloc.id, err = print_error(result[0])))
+            self._log.warn("IBPProtocol.Send [{alloc}]: Failed to move allocation - {err}".format(alloc = source.id, err = print_error(result[0])))
+            self._log.warn("--Command: {}".format(tmpCommand))
             return None
         else:
             return duration
@@ -373,10 +374,11 @@ class ProtocolService(object):
             if not result:
                 return None
         except Exception as exp:
+            raise exp
             self._log.warn("IBPProtocol.Load [{alloc}]: Could not connect to {d} - {err}".format(alloc = alloc.id, err = exp, d = alloc.depot))
             return None
             
-        if result["headers"].startswith("-"):
+        if result["headers"].startswith(b"-"):
             self._log.warn("IBPProtocol.Load [{alloc}]: Failed to store resource - {err}".format(alloc = alloc.id, err = print_error(result[0])))
             return None
         else:
@@ -385,6 +387,7 @@ class ProtocolService(object):
 
     @trace.debug("IBP.ProtocolService")
     def _receive_data(self, depot, command, size):
+        rsize = 0
         port = int(depot.port)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(10)
@@ -396,12 +399,10 @@ class ProtocolService(object):
         try:
             sock.send(command)
             header = sock.recv(1024)
-            if isinstance(header, bytes):
-                header = header.decode()
-            nl = header.index('\n') # throws exception if not found
+            nl = header.index(b'\n') # throws exception if not found
             recv = len(header) - nl - 1
             if recv:
-                data = header[-recv:].encode()
+                data = header[-recv:]
             else:
                 data = b''
             while recv < size:
@@ -414,6 +415,7 @@ class ProtocolService(object):
             self._log.warn("--Attempted to execute: {0}".format(command))
             return None
         except Exception as e:
+            raise e
             self._log.warn("Socket error - {0}".format(e))
             self._log.warn("--Attempted to execute: {0}".format(command))
             return None
@@ -437,9 +439,7 @@ class ProtocolService(object):
         try:
             sock.send(command)
             response = sock.recv(1024)
-            if isinstance(response, bytes):
-                response = response.decode()
-            if not response.startswith("-"):
+            if not response.startswith(b"-"):
                 sock.sendall(data)
                 response = sock.recv(1024)
         except socket.timeout as e:

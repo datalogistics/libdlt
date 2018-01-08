@@ -179,6 +179,7 @@ class Session(object):
                     raise Exception("Unkown depot {}".format(d.endpoint))
                 return ext, alloc.read(**self._depots[d.endpoint].to_JSON())
             except Exception as exp:
+                raise exp
                 self.log.warn(exp)
             return ext, False
         ex = self._runtime.find(href)
@@ -213,14 +214,14 @@ class Session(object):
         return (time.time() - time_s, dsize, ex)
         
     @trace.info("Session")
-    def copy(self, href, download_schedule=BaseDownloadSchedule(), upload_schedule=BaseUploadSchedule(), **kwargs):
+    def copy(self, href, download_schedule=BaseDownloadSchedule(), upload_schedule=BaseUploadSchedule(), progress_cb=None, **kwargs):
         def offsets(size):
             i = 0
             while i < size:
                 ext = download_schedule.get({"offset": i})
                 yield ext
                 i += ext.size
-        def _copy_chunk(sock_down, sock_up):
+        def _copy_chunk(name, size, sock_down, sock_up):
             def _f(ext):
                 try:
                     alloc = factory.buildAllocation(ext)
@@ -230,12 +231,11 @@ class Session(object):
                     dest_depot = self._depots[dest_desc.endpoint]
                     dst_alloc = alloc.copy(dest_desc, src_depot.to_JSON(), dest_depot.to_JSON(), **kwargs)
                     dst_ext = dst_alloc.getMetadata()
-                    self._viz_progress(sock_down, ext.location, ext.size, ext.offset)
-                    self._viz_progress(sock_up, dst_ext.location, dst_ext.size, dst_ext.offset)
+                    self._viz_progress(sock_down, name, size, ext.location, ext.size, ext.offset, progress_cb)
+                    self._viz_progress(sock_up, name, size, dst_ext.location, dst_ext.size, dst_ext.offset, progress_cb)
                     return (ext, dst_ext)
-                except Exception as exp:
-                    print ("READ Error: {}".format(exp))
-                return ext, False
+                except:
+                    raise
             return _f
                 
         ex = self._runtime.find(href)
@@ -244,15 +244,16 @@ class Session(object):
         download_schedule.setSource(allocs)
         upload_schedule.setSource(self._depots)
         
-        sock_up = self._viz_register("{}_upload".format(ex.name), ex.size, len(self._depots))
-        sock_down = self._viz_register("{}_download".format(ex.name), ex.size, len(self._depots))
+        sock_up = self._viz_register("{}_upload".format(ex.name), ex.size, len(self._depots), progress_cb)
+        sock_down = self._viz_register("{}_download".format(ex.name), ex.size, len(self._depots), progress_cb)
         time_s = time.time()
         with ThreadPoolExecutor(max_workers=self._threads) as executor:
-            for src_alloc, dst_alloc  in executor.map(_copy_chunk(sock_down, sock_up), offsets(ex.size)):
-                alloc = dst_alloc
-                self._runtime.insert(alloc, commit=True)
-                alloc.parent = ex
-                ex.extents.append(alloc)
+            for src_alloc, dst_alloc  in executor.map(_copy_chunk(ex.name, ex.size, sock_down, sock_up), offsets(ex.size)):
+                if dst_alloc:
+                    alloc = dst_alloc
+                    self._runtime.insert(alloc, commit=True)
+                    alloc.parent = ex
+                    ex.extents.append(alloc)
         
         time_e = time.time()
         

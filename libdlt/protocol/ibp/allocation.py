@@ -97,7 +97,7 @@ class Capability(object):
             self.wrmKey     = tmpSplit[4]
             self.code       = tmpSplit[5]
         except Exception as exp:
-            raise ValueError('Malformed capability string')
+            raise ValueError('Malformed capability string - {}'.format(cap_string))
 
     def __str__(self):
         return self._cap

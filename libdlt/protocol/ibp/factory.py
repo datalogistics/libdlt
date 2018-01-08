@@ -84,21 +84,27 @@ class IBPAdaptor(object):
         
     @trace.info("IBPAdaptor")
     def copy(self, destination, src_kwargs, dst_kwargs, **kwds):
-        host   = self._allocation.host
-        port   = self._allocation.port
+        host   = self._allocation.depot.host
+        port   = self._allocation.depot.port
         offset = kwds.get("offset", 0)
-        size   = kwds.get("size", self._allocation.depotSize - offset)
+        size   = kwds.get("size", self._allocation.size - offset)
+        data = self._allocation.to_JSON()
+        del data['id']
+        if data.get('selfRef', None):
+            del data['selfRef']
+        dest_alloc = buildAllocation(data)
         
-        dest_alloc = buildAllocation(self._allocation.to_JSON())
-        
-        response = self._service.allocate(destination, size, **kwds)
+        response = self._service.allocate(destination, offset, size, **kwds)
         if not response:
             return False
         
-        dest_alloc._allocation.setReadCapability(response.getReadCapability)
-        dest_alloc._allocation.setWriteCapability(response.getWriteCapability)
-        dest_alloc._allocation.setManageCapability(response.setManageCapability)
+        dest_alloc._allocation.setReadCapability(str(response.getReadCapability()))
+        dest_alloc._allocation.setWriteCapability(str(response.getWriteCapability()))
+        dest_alloc._allocation.setManageCapability(str(response.getManageCapability()))
+        dest_alloc._allocation.depot = response.depot
+        dest_alloc._allocation.location = response.location
         dest_alloc.offset = offset
+        del dest_alloc._allocation.function
         duration = self._service.send(self._allocation, dest_alloc, **kwds)
         
         if not duration:
