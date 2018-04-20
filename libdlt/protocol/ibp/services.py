@@ -10,7 +10,7 @@ to the IBP protocol
 
 '''
 
-import datetime
+import time
 import argparse
 import socket
 import logging
@@ -19,6 +19,25 @@ from .settings import DEFAULT_PASSWORD, DEFAULT_TIMEOUT, DEFAULT_DURATION
 from libdlt.logging import debug, info
 from libdlt.protocol.ibp import flags, allocation
 from libdlt.protocol.ibp.flags import print_error
+
+class Capability(object):
+    def __init__(self, cap_string):
+        try:
+            self._cap       = cap_string
+            tmpSplit        = cap_string.split("/")
+            tmpAddress      = tmpSplit[2].split(":")
+            self.key        = tmpSplit[3]
+            self.wrmKey     = tmpSplit[4]
+            self.code       = tmpSplit[5]
+        except Exception as exp:
+            raise ValueError('Malformed capability string')
+
+    def __str__(self):
+        return self._cap
+
+    def __repr__(self):
+        return self.__str__()
+
 
 class ProtocolService(object):
     @debug("IBP.ProtocolService")
@@ -109,7 +128,7 @@ class ProtocolService(object):
             mode = kwargs["mode"]
             
         try:
-            cap = alloc.GetManageCapability()
+            cap = Capability(alloc.mapping.manage)
             tmpCommand = "{0} {1} {2} {3} {4} {5} {6} {7} {8} {9}\n".format(flags.IBPv031,
                                                                             flags.IBP_MANAGE,
                                                                             cap.key,
@@ -169,20 +188,11 @@ class ProtocolService(object):
     def allocate(self, depot, offset, size, **kwargs):
         # Generate destination Allocation and Capabilities using the form below
         # IBPv031[0] IBP_ALLOCATE[1] reliability cap_type duration size timeout
-        reliability = flags.IBP_HARD
-        cap_type    = flags.IBP_BYTEARRAY
-        timeout     = DEFAULT_TIMEOUT
-        duration    = DEFAULT_DURATION
-
-        if "reliability" in kwargs:
-            reliability = kwargs["reliability"]
-        if "type" in kwargs:
-            cap_type = kwargs["type"]
-        if "duration" in kwargs:
-            duration = kwargs["duration"]
-        if "timeout" in kwargs:
-            timeout = kwargs["timeout"]
-
+        reliability = kwargs.get('reliability', None) or flags.IBP_HARD
+        cap_type    = kwargs.get('type', None) or flags.IBP_BYTEARRAY
+        timeout     = kwargs.get('timeout', None) or DEFAULT_TIMEOUT
+        duration    = kwargs.get('duration', None) or DEFAULT_DURATION
+        
         try:
             tmpCommand = "{0} {1} {2} {3} {4} {5} {6} \n".format(flags.IBPv031, flags.IBP_ALLOCATE, reliability, cap_type, duration, size, timeout)
             result = self._dispatch_command(depot, tmpCommand)
@@ -192,53 +202,54 @@ class ProtocolService(object):
         except Exception as exp:
             self._log.warn("IBPProtocol.Allocate: Could not connect to {d} - {err}".format(err = exp, d = depot))
             return None
-
+        
         if result[0].startswith("-"):
             self._log.warn("IBPProtocol.Allocate: Failed to allocate resource - {err}".format(err = print_error(result[0])))
         
-
-        alloc = allocation.Allocation()
-        alloc.SetReadCapability(result[0])
-        alloc.SetWriteCapability(result[1])
-        alloc.SetManageCapability(result[2])
-        
-        alloc.setStartTime(datetime.datetime.utcnow())
-        alloc.setEndTime(datetime.datetime.utcnow() + datetime.timedelta(seconds = duration))
-
-        alloc.depot = depot
-        alloc.location = depot.endpoint
-        alloc.offset = offset
-        alloc.size = size
-        alloc.alloc_offset = offset
-        alloc.alloc_length = size
-        del alloc.function
+        try:
+            alloc = allocation.IBPExtent()
+            alloc.mapping.read = result[0]
+            alloc.mapping.write = result[1]
+            alloc.mapping.manage = result[2]
+            alloc.lifetime = { 'start': str(int(time.time() * 1000000)),
+                               'end':  str(int((time.time() + duration) * 1000000)) }
+            
+            alloc.depot = depot
+            alloc.location = depot.endpoint
+            alloc.offset = offset
+            alloc.size = size
+            alloc.alloc_offset = offset
+            alloc.alloc_length = size
+        except:
+            import traceback
+            traceback.print_exc()
+            raise
         return alloc
-    
     
     # Below are several shorthand versions of Allocate for hard and soft allocations of various types.
     def allocateSoftByteArray(self, depot, size, **kwargs):
-        return self.Allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_BYTEARRAY, **kwargs)
+        return self.allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_BYTEARRAY, **kwargs)
 
     def allocateHardByteArray(self, depot, size, **kwargs):
-        return self.Allocate(depot, size, reliability = flags.IBP_HARD, type = flags.IBP_BYTEARRAY, **kwargs)
+        return self.allocate(depot, size, reliability = flags.IBP_HARD, type = flags.IBP_BYTEARRAY, **kwargs)
 
     def allocateSoftBuffer(self, depot, size, **kwargs):
-        return self.Allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_BUFFER, **kwargs)
+        return self.allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_BUFFER, **kwargs)
     
     def allocateHardBuffer(self, depot, size, **kwargs):
-        return self.Allocate(depot, size, reliability = flags.IBP_HARD, type = flags.IBP_BUFFER, **kwargs)
+        return self.allocate(depot, size, reliability = flags.IBP_HARD, type = flags.IBP_BUFFER, **kwargs)
 
     def allocateSoftFifo(self, depot, size, **kwargs):
-        return self.Allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_FIFO, **kwargs)
+        return self.allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_FIFO, **kwargs)
 
     def allocateHardFifo(self, depot, size, **kwargs):
-        return self.Allocate(depot, size, reliability = flags.IBP_HARD, type = flags.IBO_FIFO, **kwargs)
+        return self.allocate(depot, size, reliability = flags.IBP_HARD, type = flags.IBO_FIFO, **kwargs)
 
     def allocateSoftCirq(self, depot, size, **kwargs):
-        return self.Allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_CIRQ, **kwargs)
+        return self.allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_CIRQ, **kwargs)
 
     def allocateHardCirq(self, depot, size, **kwargs):
-        return self.Allocate(depot, size, reliability = flags.IBP_HARD, typ = flags.IBP_CIRQ, **kwargs)
+        return self.allocate(depot, size, reliability = flags.IBP_HARD, typ = flags.IBP_CIRQ, **kwargs)
 
 
 
@@ -259,13 +270,13 @@ class ProtocolService(object):
         depot = alloc.depot
         timeout  = DEFAULT_TIMEOUT
         duration = DEFAULT_DURATION
-
+        
         if "timeout" in kwargs:
             timeout = kwargs["timeout"]
         if "duration" in kwargs:
             duration = kwargs["duration"]
         
-        cap = alloc.GetWriteCapability()
+        cap = Capability(alloc.mapping.write)
         
         try:
             tmpCommand = "{0} {1} {2} {3} {4} {5}\n".format(flags.IBPv031, flags.IBP_STORE, cap.key, cap.wrmKey, size, timeout)
@@ -310,8 +321,8 @@ class ProtocolService(object):
             offset = kwars["offset"]
         size = kwargs.get("size", source.depotSize)
 
-        src_cap  = source.GetReadCapability()
-        dest_cap = destination.GetWriteCapability()
+        src_cap  = Capability(source.mapping.read)
+        dest_cap = Capability(destination.mapping.write)
         
     # Generate move request with the following form
     # IBPv040[1] IBP_SEND[5] src_read_key src_WRMKey dest_write_cap offset size timeout timeout timeout
@@ -360,7 +371,7 @@ class ProtocolService(object):
         if "offset" in kwargs:
             offset = kwargs["offset"]
             
-        cap = alloc.GetReadCapability()
+        cap = Capability(alloc.mapping.read)
         
         try:
             tmpCommand = "{version} {command} {key} {wrmkey} {offset} {length} {timeout} \n".format(version = flags.IBPv031, 
@@ -370,11 +381,16 @@ class ProtocolService(object):
                                                                                                     offset  = offset,
                                                                                                     length  = alloc.size,
                                                                                                     timeout = timeout)
-            result = await loop.run_in_executor(self._receive_data, depot, tmpCommand, alloc.size)
+            try:
+                result = await loop.run_in_executor(None, self._receive_data, depot, tmpCommand, alloc.size)
+            except:
+                import traceback
+                traceback.print_exc()
+                raise
             if not result:
                 return None
         except Exception as exp:
-            self._log.warn("IBPProtocol.Load [{alloc}]: Could not connect to {d} - {err}".format(alloc = alloc.id, err = exp, d = alloc.depot))
+            self._log.warn("IBPProtocol.Load [{alloc}]: Could not connect to {d} - {err}".format(alloc = alloc.id, err = exp, d = alloc.depot.endpoint))
             return None
             
         if result["headers"].startswith("-"):

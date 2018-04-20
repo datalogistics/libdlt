@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from uritools import urisplit
 
@@ -25,9 +26,10 @@ def buildAllocation(obj):
     return CephAdaptor(alloc)
 
 @info("Ceph.factory")
-async def makeAllocation(data, offset, depot, loop, **kwds):
+async def makeAllocation(data, offset, depot, **kwds):
     alloc = CephExtent()
     pool = kwds.get("pool", "dlt")
+    loop = kwds.get("loop", asyncio.get_event_loop())
     oid = str(uuid.uuid4())
     alloc.location = "{0}/{1}/{2}".format(depot.endpoint, pool, oid)
     alloc.pool = pool

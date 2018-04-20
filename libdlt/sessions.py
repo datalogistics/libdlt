@@ -14,6 +14,7 @@ from uritools import urisplit
 from socketIO_client import SocketIO
 
 from libdlt.util import util
+from libdlt.util.async import make_async
 from libdlt.depot import Depot
 from libdlt.logging import getLogger, debug, info
 from libdlt.protocol import factory
@@ -36,8 +37,8 @@ class Session(object):
     
     @debug("Session")
     def __init__(self, url, depots, bs=BLOCKSIZE, timeout=TIMEOUT, threads=THREADS, **kwargs):
-        self._validate_url(url)
-        self._runtime = Runtime(url, defer_update=True, auto_sync=False, subscribe=False, inline=True)
+        self._external_rt = isinstance(url, Runtime)
+        self._runtime = url if isinstance(url, Runtime) else Runtime(url, proxy={'defer_update': True, 'subscribe': False})
         self._runtime.exnodes.createIndex("name")
         self._do_flush = True
         self._blocksize = bs if isinstance(bs, int) else int(util.human2bytes(bs))
@@ -56,8 +57,7 @@ class Session(object):
             for depot in self._runtime.services.where(lambda x: x.serviceType in DEPOT_TYPES):
                 self._depots[depot.selfRef] = depot
         elif isinstance(depots, str):
-            self._validate_url(depots)
-            with Runtime(depots, auto_sync=False, subscribe=False) as rt:
+            with Runtime(depots) as rt:
                 for depot in rt.services.where(lambda x: x.serviceType in DEPOT_TYPES):
                     self._depots[depot.selfRef] = depot
         elif isinstance(depots, dict):
@@ -109,9 +109,9 @@ class Session(object):
         
 
     @debug("Session")
-    async def _generate_jobs(self, iterator, copies fh):
+    async def _generate_jobs(self, iterator, copies, fh):
         async for info in iterator(fh):
-            for copy in copies:
+            for copy in range(copies):
                 await self._jobs.put(info)
         await self._jobs.put(None)
         return []
@@ -125,8 +125,7 @@ class Session(object):
             
             ## Upload chunk ##
             d = Depot(schedule.get({"offset": offset, "size": len(data), "data": data}))
-            alloc = await factory.makeAllocation(data, offset, d, duration=duration, **self._depots[d.endpoint].to_JSON(), loop=self._loop)
-            
+            alloc = await factory.makeAllocation(data, offset, d, duration=duration, **self._depots[d.endpoint].to_JSON(), loop=asyncio.get_event_loop())
             ## Create Allocation ##
             alloc = alloc.getMetadata()
             self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
@@ -137,7 +136,7 @@ class Session(object):
         return allocs
         
     @info("Session")
-    def upload(self, filepath, folder=None, copies=COPIES, duration=None, schedule=BaseUploadSchedule()):
+    def upload(self, filepath, filename=None, folder=None, copies=COPIES, duration=None, schedule=BaseUploadSchedule()):
         #self._loop.set_debug(True)
         #logging.getLogger('asyncio').setLevel(logging.DEBUG)
         ## Read File ##
@@ -166,7 +165,7 @@ class Session(object):
         stat = os.stat(filepath)
         ex = Exnode({ "parent": folder, "created": int(time.time() * 1000000), "mode": "file", "size": stat.st_size,
                       "permission": format(stat.st_mode & 0o0777, 'o'), "owner": getpass.getuser(),
-                      "name": os.path.basename(filepath) })
+                      "name": filename or os.path.basename(filepath) })
         ex.group = ex.owner
         ex.updated = ex.created
         sock = self._viz_register(ex.name, ex.size, len(self._depots))
@@ -174,20 +173,38 @@ class Session(object):
         ## Generate tasks ##
         workers = []
         time_s = time.time()
-        workers = [asyncio.ensure_future(self._upload_chunks(schedule, duration, sock), loop=self._loop) for _ in range(self._threads)]
+
+        ## Temporary removal for debugging ##
+        #workers = [self._upload_chunks(schedule, duration, sock) for _ in range(self._threads)]
+        #with open(filepath, 'rb') as fh:
+        #    workers.append(self._generate_jobs(aoifile_iter, copies, fh))
+        #    done = make_async(asyncio.gather, *workers)
+        #    #done, pending = self._loop.run_until_complete(asyncio.wait(workers))
+        
+        done = []
         with open(filepath, 'rb') as fh:
-            workers.append(asyncio.ensure_future(self._generate_jobs(aoifile_iter, copies, fh), loop=self._loop))
-            done, pending = self._loop.run_until_complete(asyncio.wait(workers))
+            offset = 0
+            block = fh.read(self._blocksize)
+            while block:
+                d = Depot(schedule.get({"offset": offset, "size": len(block), "data": block}))
+                alloc = factory.makeAllocation(block, offset, d, duration=duration, **self._depots[d.endpoint].to_JSON())
+                #alloc = make_async(factory.makeAllocation, block, offset, d, duration=duration, **self._depots[d.endpoint].to_JSON())
+                alloc = alloc.getMetadata()
+                done.append(alloc)
+                
+                offset += len(block)
+                block = fh.read(self._blocksize)
         
         time_e = time.time()
         
         ## Generate Exnode ##
         self._runtime.insert(ex, commit=True)
-        for task in done:
-            for alloc in task.result():
-                alloc.parent = ex
-                ex.extents.append(alloc)
-                self._runtime.insert(alloc, commit=True)
+        for alloc in done:
+            alloc.parent = ex
+            alloc.getObject().__dict__['selfRef'] = ''
+            del alloc.getObject().__dict__['function']
+            ex.extents.append(alloc)
+            self._runtime.insert(alloc, commit=True)
         
         if self._do_flush:
             self._runtime.flush()
@@ -197,8 +214,12 @@ class Session(object):
     @debug("Session")
     async def _download_chunks(self, filepath, schedule, sock):
         def _write(fh, offset, data):
+            async def _noop():
+                return None
             fh.seek(offset)
-            return self._loop.run_in_executor(None, fh.write, data)
+            if data:
+                return self._loop.run_in_executor(None, fh.write, data)
+            return _noop()
         fh = open(filepath, 'wb')
         while not self._jobs.empty():
             offset, end = self._jobs.get_nowait()
@@ -213,16 +234,17 @@ class Session(object):
             d = Depot(alloc.location)
             service = factory.buildAllocation(alloc)
             data = await service.read(self._loop, **self._depots[d.endpoint].to_JSON())
-            self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
-            fh.seek(alloc.offset)
-            data = await _write(fh, alloc.offset, data)
+            if data:
+                print("Downloaded: ", len(data))
+                self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
+                fh.seek(alloc.offset)
+                data = await _write(fh, alloc.offset, data)
         
         fh.close()
         
     @info("Session")
     def download(self, href, filepath, length=0, offset=0, schedule=BaseDownloadSchedule()):
-        self._validate_url(href)
-        ex = self._runtime.find(href)
+        ex = next(self._runtime.exnodes.where({'selfRef': href}))
         allocs = ex.extents
         schedule.setSource(allocs)
         locs = {}
@@ -242,7 +264,7 @@ class Session(object):
         time_s = time.time()
         self._jobs.put_nowait((0, ex.size))
         workers = [asyncio.ensure_future(self._download_chunks(filepath, schedule, sock), loop=self._loop) for _ in range(self._threads)]
-        self._loop.run_until_complete(asyncio.wait(workers))
+        self._loop.run_until_complete(asyncio.gather(*workers))
         
         return (time.time() - time_s, ex)
         
@@ -272,8 +294,7 @@ class Session(object):
                 return ext, False
             return _f
                 
-        self._validate_url(href)
-        ex = self._runtime.find(href)
+        ex = next(self._runtime.exnodes.where({'selfRef': href}))
         allocs = ex.extents
         futures = []
         download_schedule.setSource(allocs)
@@ -352,26 +373,14 @@ class Session(object):
                 exnode.commit(n)
             def __enter__(mod):
                 pass
-            def __exit__(mod):
+            def __exit__(mod, ex_ty, ex_val, tb):
                 self._runtime.flush()
         return _modifier()
     
     
-    @debug("Session")
-    def _validate_url(self, url):
-        regex = re.compile(
-            r'^(?:http)s?://'
-            r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'
-            r'localhost|'
-            r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'
-            r'(?::\d+)?'
-            r'(?:/?|[/?]\S+)$', re.IGNORECASE)
-        
-        if not regex.match(url):
-            raise ValueError("invalid url - {u}".format(u=url))
-            
     def __enter__(self):
-        pass
+        return self
 
-    def __exit__(self):
-        self._runtime.shutdown()
+    def __exit__(self, ex_ty, ex_val, tb):
+        if not self._external_rt:
+            self._runtime.shutdown()

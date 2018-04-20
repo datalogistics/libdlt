@@ -5,7 +5,8 @@ import logging
 
 from libdlt.logging import getLogger, debug, info
 from libdlt.protocol.exceptions import AllocationException
-from libdlt.protocol.ibp.allocation import Allocation, IBPExtent
+from libdlt.protocol.ibp.allocation import IBPExtent
+from libdlt.depot import Depot
 import libdlt.protocol.ibp.services as services
 import libdlt.protocol.ibp.flags as flags
 
@@ -21,23 +22,22 @@ def buildAllocation(json):
             logger.warn("{func:>20}| Could not decode allocation - {exp}".format(func = "buildAllocation", exp = exp))
             raise AllocationException("Could not decode json")
 
-    if type(json) is IBPExtent:
-        alloc = Allocation(json.to_JSON())        
-    elif type(json) is dict:
-        alloc = Allocation(json)
-    elif type(json) is Allocation:
+    if isinstance(json, IBPExtent):
         alloc = json
+    elif isinstance(json, dict):
+        alloc = IBPExtent(json)
     else:
         raise AllocationException("Invalid input type")
-            
+    
+    alloc.depot = Depot(alloc.location)
     tmpAdapter = IBPAdaptor(alloc)
     
     return tmpAdapter
 
 # create a new object and metadata given data and depot target
 @info("IBP.factory")
-async def makeAllocation(data, offset, depot, loop, **kwds):
-    return await IBPAdaptor(data=data, offset=offset, depot=depot, loop=loop, **kwds)
+def makeAllocation(data, offset, depot, **kwds):
+    return IBPAdaptor(data=data, offset=offset, depot=depot, **kwds)
     
 class IBPAdaptor(object):
     @debug("IBPAdaptor")
@@ -46,8 +46,8 @@ class IBPAdaptor(object):
         self._service = services.ProtocolService()
         
         if data:
-            self._allocation = self._service.Allocate(depot, offset, len(data), **kwds)
-            self.Write(data,**kwds)
+            self._allocation = self._service.allocate(depot, offset, len(data), **kwds)
+            self.write(data,**kwds)
         else:
             self._allocation = alloc
     
@@ -61,7 +61,12 @@ class IBPAdaptor(object):
         
     @info("IBPAdaptor")
     def write(self, data, **kwds):
-        self._service.Store(self._allocation, data, len(data), **kwds)
+        try:
+            self._service.store(self._allocation, data, len(data), **kwds)
+        except:
+            import traceback
+            traceback.print_exp()
+            raise
         
     @info("IBPAdaptor")
     def check(self, **kwds):
