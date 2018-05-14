@@ -77,7 +77,7 @@ def main():
             flist.append(f)
 
     for f in flist:
-        diff, res = xfer(f, args.output)
+        diff, res = xfer(f, folder=args.output)
         print ("{0} ({1} {2:.2f} MB/s) {3}".format(res.name, res.size,
                                                    res.size/1e6/diff,
                                                    res.selfRef))

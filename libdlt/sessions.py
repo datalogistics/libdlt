@@ -243,7 +243,7 @@ class Session(object):
         fh.close()
         
     @info("Session")
-    def download(self, href, filepath, length=0, offset=0, schedule=BaseDownloadSchedule()):
+    def download(self, href, folder=None, length=0, offset=0, schedule=BaseDownloadSchedule()):
         ex = next(self._runtime.exnodes.where({'selfRef': href}))
         allocs = ex.extents
         schedule.setSource(allocs)
@@ -255,15 +255,15 @@ class Session(object):
                 locs[alloc.location] = []
             locs[alloc.location].append(alloc)
         
-        if not filepath:
-            filepath = ex.name
-        
+        if not folder:
+            folder = ex.name
+            
         # register download with Periscope
         sock = self._viz_register(ex.name, ex.size, len(locs))
         
         time_s = time.time()
         self._jobs.put_nowait((0, ex.size))
-        workers = [asyncio.ensure_future(self._download_chunks(filepath, schedule, sock), loop=self._loop) for _ in range(self._threads)]
+        workers = [asyncio.ensure_future(self._download_chunks(folder, schedule, sock), loop=self._loop) for _ in range(self._threads)]
         self._loop.run_until_complete(asyncio.gather(*workers))
         
         return (time.time() - time_s, ex)
