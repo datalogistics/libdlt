@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import argparse
 import json
 import libdlt
@@ -43,6 +44,8 @@ def main():
                         help='Include verbose logging output')
     parser.add_argument('-t', '--threads', type=int, default=5,
                         help='Number of threads for operation')
+    parser.add_argument('-r', '--recursive', action='store_true',
+                        help='Recurse into subdirectories')
 
     args = parser.parse_args()
     bs = args.bs
@@ -63,12 +66,22 @@ def main():
     sess = libdlt.Session(args.host, bs=bs, depots=depots, threads=args.threads,
                           **{"viz_url": args.visualize})
     xfer = sess.upload if args.upload else sess.download
-        
+
+    flist = []
     for f in args.files:
+        if args.recursive and os.path.isdir(f):
+            for dirpath, dirnames, files in os.walk(f):
+                for n in files:
+                    flist.append(os.path.join(dirpath, n))
+        else:
+            flist.append(f)
+
+    for f in flist:
         diff, res = xfer(f, args.output)
         print ("{0} ({1} {2:.2f} MB/s) {3}".format(res.name, res.size,
                                                    res.size/1e6/diff,
                                                    res.selfRef))
+
 
 if __name__ == "__main__":
     main()
