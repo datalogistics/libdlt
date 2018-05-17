@@ -65,7 +65,7 @@ class IBPAdaptor(object):
             self._service.store(self._allocation, data, len(data), **kwds)
         except:
             import traceback
-            traceback.print_exp()
+            traceback.print_exc()
             raise
         
     @info("IBPAdaptor")

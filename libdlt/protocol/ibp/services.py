@@ -200,7 +200,7 @@ class ProtocolService(object):
                 return None
             result = result.split(" ")[1:]
         except Exception as exp:
-            self._log.warn("IBPProtocol.Allocate: Could not connect to {d} - {err}".format(err = exp, d = depot))
+            self._log.warn("IBPProtocol.Allocate: Could not connect to {d} - {err}".format(err = exp, d = depot.endpoint))
             return None
         
         if result[0].startswith("-"):
