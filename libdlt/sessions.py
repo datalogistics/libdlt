@@ -194,6 +194,7 @@ class Session(object):
                 
                 offset += len(block)
                 block = fh.read(self._blocksize)
+                self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
         
         time_e = time.time()
         
