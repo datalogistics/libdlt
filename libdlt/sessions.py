@@ -20,6 +20,7 @@ from libdlt.logging import getLogger, debug, info
 from libdlt.protocol import factory
 from libdlt.schedule import BaseDownloadSchedule, BaseUploadSchedule
 from libdlt.settings import DEPOT_TYPES, THREADS, COPIES, BLOCKSIZE, TIMEOUT
+from libdlt.result import UploadResult, DownloadResult, CopyResult
 from unis.models import Exnode, Service
 from unis.runtime import Runtime
 
@@ -119,6 +120,7 @@ class Session(object):
     @debug("Session")
     async def _upload_chunks(self, schedule, duration, sock):
         job = await self._jobs.get()
+        uploaded = 0
         allocs = []
         while job:
             offset, data = job
@@ -130,10 +132,11 @@ class Session(object):
             alloc = alloc.getMetadata()
             self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
             allocs.append(alloc)
+            uploaded += len(data)
             job = await self._jobs.get()
             
         await self._jobs.put(None)
-        return allocs
+        return (uploaded, allocs)
         
     @info("Session")
     def upload(self, filepath, filename=None, folder=None, copies=COPIES, duration=None, schedule=BaseUploadSchedule()):
@@ -184,6 +187,7 @@ class Session(object):
         done = []
         with open(filepath, 'rb') as fh:
             offset = 0
+            uploaded = 0
             block = fh.read(self._blocksize)
             while block:
                 d = Depot(schedule.get({"offset": offset, "size": len(block), "data": block}))
@@ -191,7 +195,7 @@ class Session(object):
                 #alloc = make_async(factory.makeAllocation, block, offset, d, duration=duration, **self._depots[d.endpoint].to_JSON())
                 alloc = alloc.getMetadata()
                 done.append(alloc)
-                
+                uploaded += len(block)
                 offset += len(block)
                 block = fh.read(self._blocksize)
                 self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
@@ -209,19 +213,20 @@ class Session(object):
         
         if self._do_flush:
             self._runtime.flush()
-        return (time_e - time_s, ex)
+        return UploadResult(time_e - time_s, uploaded, ex)
     
     
     @debug("Session")
     async def _download_chunks(self, filepath, schedule, sock):
         def _write(fh, offset, data):
             async def _noop():
-                return None
+                return 0
             fh.seek(offset)
             if data:
                 return self._loop.run_in_executor(None, fh.write, data)
             return _noop()
         fh = open(filepath, 'wb')
+        downloaded = 0
         while not self._jobs.empty():
             offset, end = self._jobs.get_nowait()
             alloc = schedule.get({"offset": offset})
@@ -239,9 +244,11 @@ class Session(object):
                 print("Downloaded: ", len(data))
                 self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
                 fh.seek(alloc.offset)
-                data = await _write(fh, alloc.offset, data)
+                length = await _write(fh, alloc.offset, data)
+                downloaded += length
         
         fh.close()
+        return downloaded
         
     @info("Session")
     def download(self, href, folder=None, length=0, offset=0, schedule=BaseDownloadSchedule()):
@@ -265,9 +272,9 @@ class Session(object):
         time_s = time.time()
         self._jobs.put_nowait((0, ex.size))
         workers = [asyncio.ensure_future(self._download_chunks(folder, schedule, sock), loop=self._loop) for _ in range(self._threads)]
-        self._loop.run_until_complete(asyncio.gather(*workers))
+        downloaded = sum(self._loop.run_until_complete(asyncio.gather(*workers)))
         
-        return (time.time() - time_s, ex)
+        return DownloadResult(time.time() - time_s, downloaded, ex)
         
     @info("Session")
     def copy(self, href, duration=None, download_schedule=BaseDownloadSchedule(), upload_schedule=BaseUploadSchedule()):
@@ -294,7 +301,7 @@ class Session(object):
                     print ("READ Error: {}".format(exp))
                 return ext, False
             return _f
-                
+        
         ex = next(self._runtime.exnodes.where({'selfRef': href}))
         allocs = ex.extents
         futures = []
@@ -303,6 +310,7 @@ class Session(object):
         
         sock_up = self._viz_register("{}_upload".format(ex.name), ex.size, len(self._depots))
         sock_down = self._viz_register("{}_download".format(ex.name), ex.size, len(self._depots))
+        copied = 0
         time_s = time.time()
         with ThreadPoolExecutor(max_workers=self._threads) as executor:
             for src_alloc, dst_alloc  in executor.map(_copy_chunk(sock_down, sock_up), offsets(ex.size)):
@@ -310,6 +318,7 @@ class Session(object):
                 self._runtime.insert(alloc, commit=True)
                 alloc.parent = ex
                 ex.extents.append(alloc)
+                copied += alloc.size
         
         time_e = time.time()
         

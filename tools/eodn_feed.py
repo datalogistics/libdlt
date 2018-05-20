@@ -63,8 +63,8 @@ class Listener(object):
                 sess = libdlt.Session(host, bs=block_size, depots=depots,
                                                         **{"viz_url": self._viz})
                 xfer = sess.download
-        
-                diff, res = xfer(href, None)
+                result = xfer(href, None)
+                diff, res = result.time, result.exnode
                 print ("{0} ({1} {2:.2f} MB/s) {3}".format(res.name, res.size,
                                                            res.size/1e6/diff,
                                                            res.selfRef))
