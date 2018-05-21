@@ -246,6 +246,8 @@ class Session(object):
                 fh.seek(alloc.offset)
                 length = await _write(fh, alloc.offset, data)
                 downloaded += length
+            else:
+                await self._jobs.put((offset, end))
         
         fh.close()
         return downloaded
