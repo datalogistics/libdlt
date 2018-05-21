@@ -499,7 +499,7 @@ class ProtocolService(object):
             return None
         except UnicodeDecodeError as e:
             self._log.warn("Bad Unicode response - {}".format(e))
-            self._log.warn"--Attempted to execut:{}".format(command)
+            self._log.warn("--Attempted to execute:{}".format(command))
             traceback.print_exc()
             return None
         except Exception as e:
