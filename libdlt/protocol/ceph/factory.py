@@ -6,7 +6,7 @@ from unis.models import Extent
 from libdlt.logging import info, debug
 from libdlt.protocol.ceph.allocation import CephExtent
 from libdlt.protocol.ceph.services import ProtocolService
-from libdlt.protocol.exceptions import AllocationException
+from libdlt.protocol.exceptions import AllocationError
 
 ceph = ProtocolService()
 
@@ -16,13 +16,13 @@ def buildAllocation(obj):
         try:
             obj = json.loads(obj)
         except Exception as exp:
-            raise AllocationException("Could not decode json")
+            raise AllocationError("Could not decode json")
     if type(obj) is dict:
         alloc = CephExtent(obj)
     elif type(obj) in [CephExtent, Extent]:
         alloc = obj
     else:
-        raise AllocationException("Invalid input type")
+        raise AllocationError("Invalid input type")
     return CephAdaptor(alloc)
 
 @info("Ceph.factory")
