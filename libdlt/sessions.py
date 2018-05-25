@@ -190,8 +190,14 @@ class Session(object):
             uploaded = 0
             block = fh.read(self._blocksize)
             while block:
-                d = Depot(schedule.get({"offset": offset, "size": len(block), "data": block}))
-                alloc = factory.makeAllocation(block, offset, d, duration=duration, **self._depots[d.endpoint].to_JSON())
+                success = False
+                while not success:
+                    try:
+                        d = Depot(schedule.get({"offset": offset, "size": len(block), "data": block}))
+                        alloc = factory.makeAllocation(block, offset, d, duration=duration, **self._depots[d.endpoint].to_JSON())
+                        success = True
+                    except AllocationError as exp:
+                        continue
                 #alloc = make_async(factory.makeAllocation, block, offset, d, duration=duration, **self._depots[d.endpoint].to_JSON())
                 alloc = alloc.getMetadata()
                 done.append(alloc)
@@ -239,7 +245,12 @@ class Session(object):
             ## Download chunk ##
             d = Depot(alloc.location)
             service = factory.buildAllocation(alloc)
-            data = await service.read(self._loop, **self._depots[d.endpoint].to_JSON())
+            try:
+                data = await service.read(self._loop, **self._depots[d.endpoint].to_JSON())
+            except AllocationError as exp:
+                self.log.warn("Unable to download block - {}".format(exp))
+                await self._jobs.put((offset, end))
+                continue
             if data:
                 print("Downloaded: ", len(data))
                 self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)

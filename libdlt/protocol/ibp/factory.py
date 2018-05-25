@@ -4,7 +4,7 @@ import datetime
 import logging
 
 from libdlt.logging import getLogger, debug, info
-from libdlt.protocol.exceptions import AllocationException
+from libdlt.protocol.exceptions import AllocationError
 from libdlt.protocol.ibp.allocation import IBPExtent
 from libdlt.depot import Depot
 import libdlt.protocol.ibp.services as services
@@ -20,14 +20,14 @@ def buildAllocation(json):
             json = json.loads(json)
         except Exception as exp:
             logger.warn("{func:>20}| Could not decode allocation - {exp}".format(func = "buildAllocation", exp = exp))
-            raise AllocationException("Could not decode json")
+            raise AllocationError("Could not decode json")
 
     if isinstance(json, IBPExtent):
         alloc = json
     elif isinstance(json, dict):
         alloc = IBPExtent(json)
     else:
-        raise AllocationException("Invalid input type")
+        raise AllocationError("Invalid input type")
     
     alloc.depot = Depot(alloc.location)
     tmpAdapter = IBPAdaptor(alloc)
@@ -73,13 +73,13 @@ class IBPAdaptor(object):
         depot_status = self._service.GetStatus(self._allocation.depot)
         
         if not depot_status:
-            raise AllocationException("could not contact Depot")
+            raise AllocationError("could not contact Depot")
         
         alloc_status = self._service.Probe(self._allocation)
         self._log.debug("IBPAdapter.Check: {status}".format(status = alloc_status))
         
         if not alloc_status:
-            raise AllocationException("Could not retrieve status")
+            raise AllocationError("Could not retrieve status")
         
         if "duration" in alloc_status:
             self._allocation.end = datetime.datetime.utcnow() + datetime.timedelta(seconds = int(alloc_status["duration"]))
@@ -95,7 +95,7 @@ class IBPAdaptor(object):
         
         dest_alloc = buildAllocation(self._allocation.to_JSON())
         
-        response = self._service.Allocate(destination, size, **kwds)
+        response = self._service.allocate(destination, size, **kwds)
         if not response:
             return False
         

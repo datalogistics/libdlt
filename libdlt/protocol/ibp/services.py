@@ -20,6 +20,7 @@ from .settings import DEFAULT_PASSWORD, DEFAULT_TIMEOUT, DEFAULT_DURATION
 from libdlt.logging import debug, info
 from libdlt.protocol.ibp import flags, allocation
 from libdlt.protocol.ibp.flags import print_error
+from libdlt.protocol.ibp.exceptions import IBPError
 
 class Capability(object):
     def __init__(self, cap_string):
@@ -197,15 +198,14 @@ class ProtocolService(object):
         try:
             tmpCommand = "{0} {1} {2} {3} {4} {5} {6} \n".format(flags.IBPv031, flags.IBP_ALLOCATE, reliability, cap_type, duration, size, timeout)
             result = self._dispatch_command(depot, tmpCommand)
-            if not result:
-                return None
             result = result.split(" ")[1:]
         except Exception as exp:
             self._log.warn("IBPProtocol.Allocate: Could not connect to {d} - {err}".format(err = exp, d = depot.endpoint))
-            return None
+            raise IBPError("Failed to allocate ibp resource")
         
         if result[0].startswith("-"):
             self._log.warn("IBPProtocol.Allocate: Failed to allocate resource - {err}".format(err = print_error(result[0])))
+            raise IBPError("Error from server", response=print_error(result[0]))
         
         try:
             alloc = allocation.IBPExtent()
@@ -385,18 +385,18 @@ class ProtocolService(object):
                 result = await loop.run_in_executor(None, self._receive_data, depot, tmpCommand, alloc.size)
             except:
                 traceback.print_exc()
-                return None
+                raise IBPError("Failed to download data")
             if not result:
-                return None
+                raise IBPError("Failed to download data")
         except Exception as exp:
             self._log.warn("IBPProtocol.Load [{alloc}]: Could not connect to {d} - {err}".format(alloc = alloc.id, err = exp, d = alloc.depot.endpoint))
             traceback.print_exc()
             return None
             
         if result["headers"].startswith("-"):
-            self._log.warn("IBPProtocol.Load [{alloc}]: Failed to store resource - {err}".format(alloc = alloc.id, err = print_error(result[0])))
+            self._log.warn("IBPProtocol.Load [{alloc}]: Failed to store resource - {err}".format(alloc = alloc.id, err = print_error(result["headers"])))
             traceback.print_exc()
-            return None
+            raise IBPError("Error response from server", response=print_error(result["headers"]))
         else:
             return result["data"]
 

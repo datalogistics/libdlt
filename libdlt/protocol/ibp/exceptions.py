@@ -1,8 +1,8 @@
 
 
-from exnodemanager.protocol.exceptions import AllocationException
+from exnodemanager.protocol.exceptions import AllocationError
 
-class IBPException(AllocationException):
+class IBPError(AllocationError):
     ''' Generic exception for IBP related errors '''
     def __init__(self, *args, **kwargs):
         self.ibpResponse = kwargs.pop("response", None)
