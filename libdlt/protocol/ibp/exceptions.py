@@ -1,6 +1,5 @@
 
-
-from exnodemanager.protocol.exceptions import AllocationError
+from libdlt.protocol.exceptions import AllocationError
 
 class IBPError(AllocationError):
     ''' Generic exception for IBP related errors '''

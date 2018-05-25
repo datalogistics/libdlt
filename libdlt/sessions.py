@@ -18,6 +18,7 @@ from libdlt.util.async import make_async
 from libdlt.depot import Depot
 from libdlt.logging import getLogger, debug, info
 from libdlt.protocol import factory
+from libdlt.protocol.exceptions import AllocationError
 from libdlt.schedule import BaseDownloadSchedule, BaseUploadSchedule
 from libdlt.settings import DEPOT_TYPES, THREADS, COPIES, BLOCKSIZE, TIMEOUT
 from libdlt.result import UploadResult, DownloadResult, CopyResult
