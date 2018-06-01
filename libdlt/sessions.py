@@ -8,6 +8,7 @@ import types
 import uuid
 import logging
 
+from functools import partial
 from itertools import cycle
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from uritools import urisplit
@@ -108,56 +109,50 @@ class Session(object):
                 sock[1].emit(self.__WS_MTYPE['p'], msg)
             except Exception as e:
                 pass
-        
+    
 
     @debug("Session")
-    async def _generate_jobs(self, iterator, copies, fh):
-        async for info in iterator(fh):
-            for copy in range(copies):
-                await self._jobs.put(info)
-        await self._jobs.put(None)
-        return []
+    def _generate_jobs(self, step, size, copies):
+        for chunk in range(0, size, step):
+            for _ in range(copies):
+                self._jobs.put_nowait((chunk, step))
     
     @debug("Session")
-    async def _upload_chunks(self, schedule, duration, sock):
-        job = await self._jobs.get()
+    async def _upload_chunks(self, path, schedule, duration, sock, rank):
         uploaded = 0
         allocs = []
-        while job:
-            offset, data = job
-            
-            ## Upload chunk ##
-            d = Depot(schedule.get({"offset": offset, "size": len(data), "data": data}))
-            alloc = await factory.makeAllocation(data, offset, d, duration=duration, **self._depots[d.endpoint].to_JSON(), loop=asyncio.get_event_loop())
-            ## Create Allocation ##
-            alloc = alloc.getMetadata()
-            self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
-            allocs.append(alloc)
-            uploaded += len(data)
-            job = await self._jobs.get()
-            
-        await self._jobs.put(None)
+        with open(path, 'rb') as fh:
+            while not self._jobs.empty():
+                offset, size = await self._jobs.get()
+                fh.seek(offset)
+                data = await self._loop.run_in_executor(None, fh.read, size)
+                rsize = len(data)
+                
+                ## Upload chunk ##
+                try:
+                    d = Depot(schedule.get({"offset": offset, "size": len(data), "data": data}))
+                except Exception as exp:
+                    self.log.warn("Failed to schedule chunk upload - {}".format(exp))
+                    continue
+                try:
+                    fn = partial(factory.makeAllocation, duration=duration,
+                                 **self._depots[d.endpoint].to_JSON())
+                    alloc = await self._loop.run_in_executor(None, fn, data, offset, d)
+                except AllocationError:
+                    self._jobs.put_nowait((offset, size))
+                    continue
+                
+                ## Create Allocation ##
+                alloc = alloc.getMetadata()
+                self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
+                print("[{}] Uploaded: {}-{}".format(rank, offset, offset+rsize))
+                allocs.append(alloc)
+                uploaded += len(data)
+                
         return (uploaded, allocs)
         
     @info("Session")
-    def upload(self, filepath, filename=None, folder=None, copies=COPIES, duration=None, schedule=BaseUploadSchedule()):
-        #self._loop.set_debug(True)
-        #logging.getLogger('asyncio').setLevel(logging.DEBUG)
-        ## Read File ##
-        class aoifile_iter:
-            def __init__(it, fh):
-                it._fh = fh
-                it._offset = 0
-            async def __aiter__(it):
-                return it
-            async def __anext__(it):
-                data = await self._loop.run_in_executor(None, it._fh.read, self._blocksize)
-                if not data:
-                    raise StopAsyncIteration
-                offset = it._offset
-                it._offset += len(data)
-                return (offset, data)
-        
+    def upload(self, path, filename=None, folder=None, copies=COPIES, duration=None, schedule=BaseUploadSchedule()):
         ## Create Folder ##
         if isinstance(folder, str):
             do_flush = self._do_flush
@@ -166,65 +161,41 @@ class Session(object):
             self._do_flush = do_flush
             
         ## Setup ##
-        stat = os.stat(filepath)
-        ex = Exnode({ "parent": folder, "created": int(time.time() * 1000000), "mode": "file", "size": stat.st_size,
-                      "permission": format(stat.st_mode & 0o0777, 'o'), "owner": getpass.getuser(),
-                      "name": filename or os.path.basename(filepath) })
+        stat = os.stat(path)
+        ex = Exnode({ "parent": folder, "created": int(time.time() * 1000000), "mode": "file",
+                      "size": stat.st_size, "permission": format(stat.st_mode & 0o0777, 'o'),
+                      "owner": getpass.getuser(), "name": filename or os.path.basename(path) })
         ex.group = ex.owner
         ex.updated = ex.created
         sock = self._viz_register(ex.name, ex.size, len(self._depots))
         schedule.setSource(self._depots)
-        ## Generate tasks ##
-        workers = []
-        time_s = time.time()
 
-        ## Temporary removal for debugging ##
-        #workers = [self._upload_chunks(schedule, duration, sock) for _ in range(self._threads)]
-        #with open(filepath, 'rb') as fh:
-        #    workers.append(self._generate_jobs(aoifile_iter, copies, fh))
-        #    done = make_async(asyncio.gather, *workers)
-        #    #done, pending = self._loop.run_until_complete(asyncio.wait(workers))
-        
-        done = []
-        with open(filepath, 'rb') as fh:
-            offset = 0
-            uploaded = 0
-            block = fh.read(self._blocksize)
-            while block:
-                success = False
-                while not success:
-                    try:
-                        d = Depot(schedule.get({"offset": offset, "size": len(block), "data": block}))
-                        alloc = factory.makeAllocation(block, offset, d, duration=duration, **self._depots[d.endpoint].to_JSON())
-                        success = True
-                    except AllocationError as exp:
-                        continue
-                #alloc = make_async(factory.makeAllocation, block, offset, d, duration=duration, **self._depots[d.endpoint].to_JSON())
-                alloc = alloc.getMetadata()
-                done.append(alloc)
-                uploaded += len(block)
-                offset += len(block)
-                block = fh.read(self._blocksize)
-                self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
-        
+        time_s = time.time()
+        uploaded = 0
+        all_allocs = []
+        ## Generate tasks ##
+        self._generate_jobs(self._blocksize, ex.size, copies)
+        workers = [self._upload_chunks(path, schedule, duration, sock, r) for r in range(self._threads)]
+        for upsize, allocs in self._loop.run_until_complete(asyncio.gather(*workers)):
+            uploaded += upsize
+            all_allocs.extend(allocs)
         time_e = time.time()
-        
-        ## Generate Exnode ##
         self._runtime.insert(ex, commit=True)
-        for alloc in done:
+        for alloc in all_allocs:
             alloc.parent = ex
             alloc.getObject().__dict__['selfRef'] = ''
             del alloc.getObject().__dict__['function']
             ex.extents.append(alloc)
             self._runtime.insert(alloc, commit=True)
-        
+
         if self._do_flush:
             self._runtime.flush()
+
         return UploadResult(time_e - time_s, uploaded, ex)
     
     
     @debug("Session")
-    async def _download_chunks(self, filepath, schedule, sock):
+    async def _download_chunks(self, filepath, schedule, sock, rank):
         def _write(fh, offset, data):
             async def _noop():
                 return 0
@@ -236,10 +207,10 @@ class Session(object):
         downloaded = 0
         while not self._jobs.empty():
             offset, end = self._jobs.get_nowait()
-            alloc = schedule.get({"offset": offset})
-            if not alloc:
-                fh.close()
-                return
+            try:
+                alloc = schedule.get({"offset": offset})
+            except IndexError:
+                continue
             if alloc.offset + alloc.size < end:
                 await self._jobs.put((offset + alloc.size, end))
             
@@ -250,16 +221,16 @@ class Session(object):
                 data = await service.read(self._loop, **self._depots[d.endpoint].to_JSON())
             except AllocationError as exp:
                 self.log.warn("Unable to download block - {}".format(exp))
-                await self._jobs.put((offset, end))
+                await self._jobs.put((offset, offset + alloc.size))
                 continue
             if data:
-                print("Downloaded: ", len(data))
+                print("[{}] Downloaded: {}-{}".format(rank, offset, offset+len(data)))
                 self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
                 fh.seek(alloc.offset)
                 length = await _write(fh, alloc.offset, data)
                 downloaded += length
             else:
-                await self._jobs.put((offset, end))
+                await self._jobs.put((offset, offset + alloc.size))
         
         fh.close()
         return downloaded
@@ -285,7 +256,7 @@ class Session(object):
         
         time_s = time.time()
         self._jobs.put_nowait((0, ex.size))
-        workers = [asyncio.ensure_future(self._download_chunks(folder, schedule, sock), loop=self._loop) for _ in range(self._threads)]
+        workers = [asyncio.ensure_future(self._download_chunks(folder, schedule, sock, r), loop=self._loop) for r in range(self._threads)]
         downloaded = sum(self._loop.run_until_complete(asyncio.gather(*workers)))
         
         return DownloadResult(time.time() - time_s, downloaded, ex)

@@ -222,7 +222,7 @@ class ProtocolService(object):
             alloc.alloc_offset = offset
             alloc.alloc_length = size
         except:
-            traceback.print_exc()
+            #traceback.print_exc()
             raise
         return alloc
     
@@ -384,18 +384,18 @@ class ProtocolService(object):
             try:
                 result = await loop.run_in_executor(None, self._receive_data, depot, tmpCommand, alloc.size)
             except:
-                traceback.print_exc()
+                #traceback.print_exc()
                 raise IBPError("Failed to download data")
             if not result:
                 raise IBPError("Failed to download data")
         except Exception as exp:
             self._log.warn("IBPProtocol.Load [{alloc}]: Could not connect to {d} - {err}".format(alloc = alloc.id, err = exp, d = alloc.depot.endpoint))
-            traceback.print_exc()
+            #traceback.print_exc()
             return None
             
         if result["headers"].startswith("-"):
             self._log.warn("IBPProtocol.Load [{alloc}]: Failed to store resource - {err}".format(alloc = alloc.id, err = print_error(result["headers"])))
-            traceback.print_exc()
+            #traceback.print_exc()
             raise IBPError("Error response from server", response=print_error(result["headers"]))
         else:
             return result["data"]
@@ -462,12 +462,12 @@ class ProtocolService(object):
         except socket.timeout as e:
             self._log.warn("Socket Timeout - {0}".format(e))
             self._log.warn("--Attempted to execute: {0}".format(command))
-            traceback.print_exc()
+            #traceback.print_exc()
             return None
         except Exception as e:
             self._log.warn("Socket error - {0}".format(e))
             self._log.warn("--Attempted to execute: {0}".format(command))
-            traceback.print_exc()
+            #traceback.print_exc()
             return None
         finally:
             sock.close()
@@ -495,17 +495,17 @@ class ProtocolService(object):
         except socket.timeout as e:
             self._log.warn("Socket Timeout - {0}".format(e))
             self._log.warn("--Attempted to execute: {0}".format(command))
-            traceback.print_exc()
+            #traceback.print_exc()
             return None
         except UnicodeDecodeError as e:
             self._log.warn("Bad Unicode response - {}".format(e))
             self._log.warn("--Attempted to execute:{}".format(command))
-            traceback.print_exc()
+            #traceback.print_exc()
             return None
         except Exception as e:
             self._log.warn("Socket error - {0}".format(e))
             self._log.warn("--Attempted to execute: {0}".format(command))
-            traceback.print_exc()
+            #traceback.print_exc()
             return None
         finally:
             sock.close()

@@ -1,7 +1,10 @@
 import abc
+from collections import defaultdict
 from itertools import cycle
 
 from libdlt.logging import info
+
+DOWNLOAD_RETRY = 3
 
 class AbstractSchedule(metaclass=abc.ABCMeta):
     @abc.abstractmethod
@@ -26,39 +29,41 @@ class AbstractSchedule(metaclass=abc.ABCMeta):
 
 class BaseUploadSchedule(AbstractSchedule):
     def setSource(self, source):
-        self._ls = cycle(source)
+        self._depots = source
+        self._ls = cycle(source.keys())
 
     def get(self, context={}):
-        return next(self._ls)
+        for depot in self._ls:
+            if self._depots[depot].enabled:
+                return depot
 
 class BaseDownloadSchedule(AbstractSchedule):
     @info("BaseDownloadSchedule")
     def setSource(self, source):
-        chunks = {}
+        chunks = defaultdict(list)
         for ext in source:
-            if ext.offset not in chunks:
-                chunks[ext.offset] = []
-            chunks[ext.offset].append(ext)
+            chunks[ext.offset].append({"retry": 0, "alloc": ext})
         self._ls = chunks
         
     @info("BaseDownloadSchedule")
     def get(self, context={}):
         offset = context["offset"]
         if offset in self._ls and self._ls[offset]:
-            return self._ls[offset].pop()
+            chunk = self._ls[offset].pop()
+            if chunk['retry'] < DOWNLOAD_RETRY:
+                chunk['retry'] += 1
+                self._ls[offset].insert(0, chunk)
+            return chunk['alloc']
         else:
-            result = None
+            chunk = None
             for k, chunk in self._ls.items():
                 if k < offset:
-                    for ext in chunk:
-                        if ext.size + ext.offset > offset:
-                            result = ext
-                            break
-                    if result:
-                        self._ls[k].remove(result)
-                        break
-            
-            if not result:
-                print ("No more allocations fulfill request: offset ~ {}".format(offset))
-                #raise IndexError("No more allocations fulfill request: offset ~ {}".format(offset))
-            return result
+                    for i, ext in enumerate(chunk):
+                        if ext['alloc'].size + ext['alloc'].offset > offset:
+                            chunk = self._ls[k].pop(i)
+                            if chunk['retry'] < DOWNLOAD_RETRY:
+                                chunk['retry'] += 1
+                                self._ls[k].insert(0, chunk)
+                            return ext['alloc']
+            print ("No more allocations fulfill request: offset ~ {}".format(offset))
+            raise IndexError("No more allocations fulfill request: offset ~ {}".format(offset))
