@@ -15,7 +15,6 @@ from uritools import urisplit
 from socketIO_client import SocketIO
 
 from libdlt.util import util
-from libdlt.util.async import make_async
 from libdlt.depot import Depot
 from libdlt.logging import getLogger, debug, info
 from libdlt.protocol import factory
@@ -25,6 +24,7 @@ from libdlt.settings import DEPOT_TYPES, THREADS, COPIES, BLOCKSIZE, TIMEOUT
 from libdlt.result import UploadResult, DownloadResult, CopyResult
 from unis.models import Exnode, Service
 from unis.runtime import Runtime
+from unis.utils.async import make_async
 
 class Session(object):
     __WS_MTYPE = {
@@ -125,7 +125,7 @@ class Session(object):
             while not self._jobs.empty():
                 offset, size = await self._jobs.get()
                 fh.seek(offset)
-                data = await self._loop.run_in_executor(None, fh.read, size)
+                data = await asyncio.get_event_loop().run_in_executor(None, fh.read, size)
                 rsize = len(data)
                 
                 ## Upload chunk ##
@@ -137,7 +137,7 @@ class Session(object):
                 try:
                     fn = partial(factory.makeAllocation, duration=duration,
                                  **self._depots[d.endpoint].to_JSON())
-                    alloc = await self._loop.run_in_executor(None, fn, data, offset, d)
+                    alloc = await asyncio.get_event_loop().run_in_executor(None, fn, data, offset, d)
                 except AllocationError:
                     self._jobs.put_nowait((offset, size))
                     continue
@@ -148,11 +148,17 @@ class Session(object):
                 print("[{}] Uploaded: {}-{}".format(rank, offset, offset+rsize))
                 allocs.append(alloc)
                 uploaded += len(data)
-                
+
         return (uploaded, allocs)
         
     @info("Session")
-    def upload(self, path, filename=None, folder=None, copies=COPIES, duration=None, schedule=BaseUploadSchedule()):
+    def upload(self, path, filename=None, folder=None, copies=COPIES, duration=None, schedule=None):
+        async def _awrapper(schedule, sock):
+            workers = [self._upload_chunks(path, schedule, duration, sock, r) for r in range(self._threads)]
+            result = await asyncio.gather(*workers)
+            return result
+        
+        schedule = schedule or BaseUploadSchedule()
         ## Create Folder ##
         if isinstance(folder, str):
             do_flush = self._do_flush
@@ -175,8 +181,7 @@ class Session(object):
         all_allocs = []
         ## Generate tasks ##
         self._generate_jobs(self._blocksize, ex.size, copies)
-        workers = [self._upload_chunks(path, schedule, duration, sock, r) for r in range(self._threads)]
-        for upsize, allocs in self._loop.run_until_complete(asyncio.gather(*workers)):
+        for upsize, allocs in make_async(_awrapper, schedule, sock):
             uploaded += upsize
             all_allocs.extend(allocs)
         time_e = time.time()
@@ -201,7 +206,7 @@ class Session(object):
                 return 0
             fh.seek(offset)
             if data:
-                return self._loop.run_in_executor(None, fh.write, data)
+                return asyncio.get_event_loop().run_in_executor(None, fh.write, data)
             return _noop()
         fh = open(filepath, 'wb')
         downloaded = 0
@@ -218,7 +223,7 @@ class Session(object):
             d = Depot(alloc.location)
             service = factory.buildAllocation(alloc)
             try:
-                data = await service.read(self._loop, **self._depots[d.endpoint].to_JSON())
+                data = await service.read(asyncio.get_event_loop(), **self._depots[d.endpoint].to_JSON())
             except AllocationError as exp:
                 self.log.warn("Unable to download block - {}".format(exp))
                 await self._jobs.put((offset, offset + alloc.size))
@@ -236,7 +241,12 @@ class Session(object):
         return downloaded
         
     @info("Session")
-    def download(self, href, folder=None, length=0, offset=0, schedule=BaseDownloadSchedule()):
+    def download(self, href, folder=None, length=0, offset=0, schedule=None):
+        async def _awrapper(folder, schedule, sock):
+            workers = [self._download_chunks(folder, schedule, sock, r) for r in range(self._threads)]
+            return await asyncio.gather(*workers)
+
+        schedule = schedule or BaseDownloadSchedule()
         ex = next(self._runtime.exnodes.where({'selfRef': href}))
         allocs = ex.extents
         schedule.setSource(allocs)
@@ -256,8 +266,7 @@ class Session(object):
         
         time_s = time.time()
         self._jobs.put_nowait((0, ex.size))
-        workers = [asyncio.ensure_future(self._download_chunks(folder, schedule, sock, r), loop=self._loop) for r in range(self._threads)]
-        downloaded = sum(self._loop.run_until_complete(asyncio.gather(*workers)))
+        downloaded = sum(make_async(_awrapper, folder, schedule, sock))
         
         return DownloadResult(time.time() - time_s, downloaded, ex)
         
