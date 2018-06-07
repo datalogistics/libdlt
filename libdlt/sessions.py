@@ -6,7 +6,6 @@ import re
 import time
 import types
 import uuid
-import logging
 
 from functools import partial
 from itertools import cycle
@@ -14,9 +13,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from uritools import urisplit
 from socketIO_client import SocketIO
 
+from lace import logging
+from lace.logging import trace
+
 from libdlt.util import util
 from libdlt.depot import Depot
-from libdlt.logging import getLogger, debug, info
 from libdlt.protocol import factory
 from libdlt.protocol.exceptions import AllocationError
 from libdlt.schedule import BaseDownloadSchedule, BaseUploadSchedule
@@ -38,8 +39,14 @@ class Session(object):
         '10.10.1.1': 'mon1.apt.emulab.net'
     }
     
-    @debug("Session")
+    @trace.debug("Session")
     def __init__(self, url, depots, bs=BLOCKSIZE, timeout=TIMEOUT, threads=THREADS, **kwargs):
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
         self._external_rt = isinstance(url, Runtime)
         self._runtime = url if isinstance(url, Runtime) else Runtime(url, proxy={'defer_update': True, 'subscribe': False})
         self._runtime.exnodes.createIndex("name")
@@ -51,10 +58,7 @@ class Session(object):
         self._threads = threads
         self._viz = kwargs.get("viz_url", None)
         self._jobs = asyncio.Queue()
-        self._loop = asyncio.get_event_loop()
-        self.log = getLogger()
-        
-        self._loop.set_default_executor(ThreadPoolExecutor(threads))
+        self.log = logging.getLogger('libdlt')
         
         if not depots:
             for depot in self._runtime.services.where(lambda x: x.serviceType in DEPOT_TYPES):
@@ -73,7 +77,7 @@ class Session(object):
         if not len(self._depots):
             raise ValueError("No depots found for session, unable to continue")
     
-    @debug("Session")
+    @trace.debug("Session")
     def _viz_register(self, name, size, conns):
         if self._viz:
             try:
@@ -92,7 +96,7 @@ class Session(object):
                 self.log.warn("Session.__init__: websocket connection failed: {}".format(e))
         return None
             
-    @debug("Session")
+    @trace.debug("Session")
     def _viz_progress(self, sock, depot, size, offset):
         if self._viz:
             try:
@@ -111,13 +115,13 @@ class Session(object):
                 pass
     
 
-    @debug("Session")
+    @trace.debug("Session")
     def _generate_jobs(self, step, size, copies):
         for chunk in range(0, size, step):
             for _ in range(copies):
                 self._jobs.put_nowait((chunk, step))
     
-    @debug("Session")
+    @trace.debug("Session")
     async def _upload_chunks(self, path, schedule, duration, sock, rank):
         uploaded = 0
         allocs = []
@@ -145,13 +149,13 @@ class Session(object):
                 ## Create Allocation ##
                 alloc = alloc.getMetadata()
                 self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
-                print("[{}] Uploaded: {}-{}".format(rank, offset, offset+rsize))
+                self.log.info("[{}] Uploaded: {}-{}".format(rank, offset, offset+rsize))
                 allocs.append(alloc)
                 uploaded += len(data)
 
         return (uploaded, allocs)
         
-    @info("Session")
+    @trace.info("Session")
     def upload(self, path, filename=None, folder=None, copies=COPIES, duration=None, schedule=None):
         async def _awrapper(schedule, sock):
             workers = [self._upload_chunks(path, schedule, duration, sock, r) for r in range(self._threads)]
@@ -199,7 +203,7 @@ class Session(object):
         return UploadResult(time_e - time_s, uploaded, ex)
     
     
-    @debug("Session")
+    @trace.debug("Session")
     async def _download_chunks(self, filepath, schedule, sock, rank):
         def _write(fh, offset, data):
             async def _noop():
@@ -229,7 +233,7 @@ class Session(object):
                 await self._jobs.put((offset, offset + alloc.size))
                 continue
             if data:
-                print("[{}] Downloaded: {}-{}".format(rank, offset, offset+len(data)))
+                self.log.info("[{}] Downloaded: {}-{}".format(rank, offset, offset+len(data)))
                 self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
                 fh.seek(alloc.offset)
                 length = await _write(fh, alloc.offset, data)
@@ -240,7 +244,7 @@ class Session(object):
         fh.close()
         return downloaded
         
-    @info("Session")
+    @trace.info("Session")
     def download(self, href, folder=None, length=0, offset=0, schedule=None):
         async def _awrapper(folder, schedule, sock):
             workers = [self._download_chunks(folder, schedule, sock, r) for r in range(self._threads)]
@@ -270,7 +274,7 @@ class Session(object):
         
         return DownloadResult(time.time() - time_s, downloaded, ex)
         
-    @info("Session")
+    @trace.info("Session")
     def copy(self, href, duration=None, download_schedule=BaseDownloadSchedule(), upload_schedule=BaseUploadSchedule()):
         def offsets(size):
             i = 0
@@ -292,7 +296,7 @@ class Session(object):
                     self._viz_progress(sock_up, dst_ext.location, dst_ext.size, dst_ext.offset)
                     return (ext, dst_ext)
                 except Exception as exp:
-                    print ("READ Error: {}".format(exp))
+                    self.log.warn ("READ Error: {}".format(exp))
                 return ext, False
             return _f
         
@@ -320,7 +324,7 @@ class Session(object):
             self._runtime.flush()
         return (time_e - time_s, ex)
         
-    @info("Session")
+    @trace.info("Session")
     def mkdir(self, path):
         def _traverse(ls, obj):
             if not ls:
@@ -367,7 +371,7 @@ class Session(object):
         
         return root
 
-    @debug("Session")
+    @trace.debug("Session")
     def annotate(self, exnode):
         class _modifier:
             def __getattr__(self, n):

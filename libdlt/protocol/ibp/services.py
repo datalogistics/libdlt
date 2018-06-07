@@ -13,8 +13,9 @@ to the IBP protocol
 import time
 import argparse
 import socket
-import logging
 import traceback
+
+from lace import logging
 
 from .settings import DEFAULT_PASSWORD, DEFAULT_TIMEOUT, DEFAULT_DURATION
 from libdlt.logging import debug, info
@@ -44,7 +45,7 @@ class Capability(object):
 class ProtocolService(object):
     @debug("IBP.ProtocolService")
     def __init__(self):
-        self._log = logging.getLogger()
+        self._log = logging.getLogger('libdlt')
 
     
     '''
