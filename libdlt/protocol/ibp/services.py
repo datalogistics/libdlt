@@ -413,7 +413,7 @@ class ProtocolService(object):
                 s += sock.send(command[s:])
                 
             buf = sock.recv(1024)
-            nl = buf.index(b'\n') + 1            
+            nl = buf.index(b'\n') + 1
             hdr = buf[:nl]
             if nl:
                 data = buf[nl:]
@@ -458,12 +458,12 @@ class ProtocolService(object):
                 sock.sendall(data)
                 response = sock.recv(1024)
         except socket.timeout as e:
-            self._log.warn("Socket Timeout - {0}".format(e))
+            self._log.warn("Data Socket Timeout - {0}".format(e))
             self._log.warn("--Attempted to execute: {0}".format(command))
             #traceback.print_exc()
             return None
         except Exception as e:
-            self._log.warn("Socket error - {0}".format(e))
+            self._log.warn("Data Socket error - {0}".format(e))
             self._log.warn("--Attempted to execute: {0}".format(command))
             #traceback.print_exc()
             return None
@@ -491,7 +491,7 @@ class ProtocolService(object):
             sock.send(command)
             response = sock.recv(1024)
         except socket.timeout as e:
-            self._log.warn("Socket Timeout - {0}".format(e))
+            self._log.warn("Command Socket Timeout - {0}".format(e))
             self._log.warn("--Attempted to execute: {0}".format(command))
             #traceback.print_exc()
             return None
@@ -501,7 +501,7 @@ class ProtocolService(object):
             #traceback.print_exc()
             return None
         except Exception as e:
-            self._log.warn("Socket error - {0}".format(e))
+            self._log.warn("Command Socket error - {0}".format(e))
             self._log.warn("--Attempted to execute: {0}".format(command))
             #traceback.print_exc()
             return None

@@ -253,7 +253,7 @@ class Session(object):
             return await asyncio.gather(*workers)
 
         schedule = schedule or BaseDownloadSchedule()
-        ex = next(self._runtime.exnodes.where({'selfRef': href}))
+        ex = self._runtime.exnodes.get([href])[0]
         allocs = ex.extents
         schedule.setSource(allocs)
         locs = {}
@@ -325,8 +325,8 @@ class Session(object):
                     self.log.warn ("READ Error: {}".format(exp))
                 return ext, False
             return _f
-        
-        ex = next(self._runtime.exnodes.where({'selfRef': href}))
+
+        ex = self._runtime.exnodes.get(href)[0]
         allocs = ex.extents
         futures = []
         download_schedule.setSource(allocs)
