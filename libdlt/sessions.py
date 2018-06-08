@@ -282,7 +282,7 @@ class Session(object):
                         alloc = schedule.get({"offset": offset})
                     except IndexError as exp:
                         self.log.warn(exp)
-                        continue
+                        break
                     d = Depot(alloc.location)
                     service = factory.buildAllocation(alloc)
                     try:
