@@ -406,7 +406,7 @@ class ProtocolService(object):
     def _receive_data(self, depot, command, size):
         port = int(depot.port)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(10)
+        sock.settimeout(2*DEFAULT_TIMEOUT)
         sock.connect((depot.host, port))
 
         if isinstance(command, str):
