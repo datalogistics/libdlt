@@ -408,10 +408,7 @@ class ProtocolService(object):
             command = command.encode()
         
         try:
-            s, slen = 0, len(command)
-            while s < slen:
-                s += sock.send(command[s:])
-                
+            sock.sendall(command)
             buf = sock.recv(1024)
             nl = buf.index(b'\n') + 1            
             hdr = buf[:nl]
@@ -450,13 +447,13 @@ class ProtocolService(object):
             command = command.encode()
         
         try:
-            sock.send(command)
+            sock.sendall(command)
             response = sock.recv(1024)
-            if isinstance(response, bytes):
-                response = response.decode()
-            if not response.startswith("-"):
+            if not response.startswith(b'-'):
                 sock.sendall(data)
                 response = sock.recv(1024)
+            else:
+                self._log.warn("Bad response from IBP server: {0}".format(response))
         except socket.timeout as e:
             self._log.warn("Socket Timeout - {0}".format(e))
             self._log.warn("--Attempted to execute: {0}".format(command))
@@ -488,7 +485,7 @@ class ProtocolService(object):
             command = command.encode()
         
         try:
-            sock.send(command)
+            sock.sendall(command)
             response = sock.recv(1024)
         except socket.timeout as e:
             self._log.warn("Socket Timeout - {0}".format(e))
