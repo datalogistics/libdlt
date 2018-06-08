@@ -65,5 +65,4 @@ class BaseDownloadSchedule(AbstractSchedule):
                                 chunk['retry'] += 1
                                 self._ls[k].insert(0, chunk)
                             return ext['alloc']
-            print ("No more allocations fulfill request: offset ~ {}".format(offset))
             raise IndexError("No more allocations fulfill request: offset ~ {}".format(offset))

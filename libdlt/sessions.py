@@ -218,7 +218,8 @@ class Session(object):
             offset, end = self._jobs.get_nowait()
             try:
                 alloc = schedule.get({"offset": offset})
-            except IndexError:
+            except IndexError as exp:
+                self.log.warn(exp)
                 continue
             if alloc.offset + alloc.size < end:
                 await self._jobs.put((offset + alloc.size, end))

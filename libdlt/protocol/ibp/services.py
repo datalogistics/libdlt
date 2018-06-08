@@ -484,7 +484,7 @@ class ProtocolService(object):
         # Create socket and configure with host and port
         port = int(depot.port)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(10)
+        sock.settimeout(2*DEFAULT_TIMEOUT)
         sock.connect((depot.host, port))
         
         if isinstance(command, str):
