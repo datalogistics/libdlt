@@ -53,7 +53,7 @@ def main():
 
     if args.debug in ['TRACE', 'DEBUG']:
         from lace import logging
-        log = logging.getLoger('libdlt')
+        log = logging.getLogger('libdlt')
         log.setLevel(logging.DEBUG)
         if args.debug == 'TRACE':
             from lace.logging import trace
