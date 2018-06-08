@@ -408,7 +408,10 @@ class ProtocolService(object):
             command = command.encode()
         
         try:
-            sock.send(command)
+            s, slen = 0, len(command)
+            while s < slen:
+                s += sock.send(command[s:])
+                
             buf = sock.recv(1024)
             nl = buf.index(b'\n') + 1            
             hdr = buf[:nl]
@@ -440,7 +443,7 @@ class ProtocolService(object):
     def _dispatch_data(self, depot, command, data):
         port = int(depot.port)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(10)
+        sock.settimeout(2*DEFAULT_TIMEOUT)
         sock.connect((depot.host, port))
 
         if isinstance(command, str):
