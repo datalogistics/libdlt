@@ -40,7 +40,7 @@ def main():
                         help='Output file')
     parser.add_argument('-V', '--visualize', type=str, default=None,
                         help='Periscope URL for visualization')
-    parser.add_argument('-D', '--debug', action='store_true',
+    parser.add_argument('-D', '--debug', type=str, default=None
                         help='Include verbose logging output')
     parser.add_argument('-t', '--threads', type=int, default=5,
                         help='Number of threads for operation')
@@ -50,10 +50,14 @@ def main():
     args = parser.parse_args()
     bs = args.bs
     df = args.depot_file
-    
-    if args.debug:
-        libdlt.logging.setLevel(10)
-    
+
+    if args.debug in ['TRACE', 'DEBUG']:
+        from lace import logging
+        log = logging.getLoger('libdlt')
+        log.setLevel(logging.DEBUG)
+        if args.debug == 'TRACE':
+            from lace.logging import trace
+            trace.setLevel(logging.DEBUG, True)
     depots = None
     if df:
         try:
