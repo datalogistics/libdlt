@@ -229,7 +229,7 @@ class Session(object):
             service = factory.buildAllocation(alloc) 
             loop = asyncio.get_event_loop()
             try:
-                fn = partial(factory.read, **self._depots[d.endpoint].to_JSON())
+                fn = partial(service.read, **self._depots[d.endpoint].to_JSON())
                 data = await loop.run_in_executor(None, fn)
             except AllocationError as exp:
                 self.log.warn("Unable to download block - {}".format(exp))
