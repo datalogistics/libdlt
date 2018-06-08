@@ -276,7 +276,7 @@ class Session(object):
             downloaded = sum(make_async(_awrapper, folder, schedule, sock))
         else:
             offset = 0
-            with open(filepath, 'wb') as fh:
+            with open(folder, 'wb') as fh:
                 while offset < ex.size:
                     try:
                         alloc = schedule.get({"offset": offset})
