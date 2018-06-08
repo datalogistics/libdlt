@@ -361,7 +361,7 @@ class ProtocolService(object):
            The data stored in the allocation
     '''
     @info("IBP.ProtocolService")
-    async def load(self, alloc, loop, **kwargs):
+    def load(self, alloc, **kwargs):
         assert alloc.depot
         depot = alloc.depot
         timeout = DEFAULT_TIMEOUT
@@ -383,7 +383,7 @@ class ProtocolService(object):
                                                                                                     length  = alloc.size,
                                                                                                     timeout = timeout)
             try:
-                result = await loop.run_in_executor(None, self._receive_data, depot, tmpCommand, alloc.size)
+                result = self._receive_data(depot, tmpCommand, alloc.size)
             except:
                 #traceback.print_exc()
                 raise IBPError("Failed to download data")

@@ -40,7 +40,7 @@ def main():
                         help='Output file')
     parser.add_argument('-V', '--visualize', type=str, default=None,
                         help='Periscope URL for visualization')
-    parser.add_argument('-D', '--debug', type=str, default=None
+    parser.add_argument('-D', '--debug', type=str, default=None,
                         help='Include verbose logging output')
     parser.add_argument('-t', '--threads', type=int, default=5,
                         help='Number of threads for operation')

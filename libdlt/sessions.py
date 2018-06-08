@@ -226,9 +226,11 @@ class Session(object):
             
             ## Download chunk ##
             d = Depot(alloc.location)
-            service = factory.buildAllocation(alloc)
+            service = factory.buildAllocation(alloc) 
+            loop = asyncio.get_event_loop()
             try:
-                data = await service.read(asyncio.get_event_loop(), **self._depots[d.endpoint].to_JSON())
+                fn = partial(factory.read, **self._depots[d.endpoint].to_JSON())
+                data = await loop.run_in_executor(None, fn)
             except AllocationError as exp:
                 self.log.warn("Unable to download block - {}".format(exp))
                 await self._jobs.put((offset, offset + alloc.size))
@@ -236,7 +238,6 @@ class Session(object):
             if data:
                 self.log.info("[{}] Downloaded: {}-{}".format(rank, offset, offset+len(data)))
                 self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
-                fh.seek(alloc.offset)
                 length = await _write(fh, alloc.offset, data)
                 downloaded += length
             else:
@@ -271,7 +272,31 @@ class Session(object):
         
         time_s = time.time()
         self._jobs.put_nowait((0, ex.size))
-        downloaded = sum(make_async(_awrapper, folder, schedule, sock))
+        if self._threads > 1:
+            downloaded = sum(make_async(_awrapper, folder, schedule, sock))
+        else:
+            offset = 0
+            with open(filepath, 'wb') as fh:
+                while offset < ex.size:
+                    try:
+                        alloc = schedule.get({"offset": offset})
+                    except IndexError as exp:
+                        self.log.warn(exp)
+                        continue
+                    d = Depot(alloc.location)
+                    service = factory.buildAllocation(alloc)
+                    try:
+                        data = service.read(**self._depots[d.endpoint].to_JSON())
+                    except AllocationError as exp:
+                        self.log.warn("Unable to download block - {}".format(exp))
+                        continue
+                    if data:
+                        self.log.info("[{}] Downloaded: {}-{}".format(rank, offset, offset+len(data)))
+                        self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
+                        fh.seek(alloc.offset)
+                        length = fh.write(data)
+                        offset += length
+            downloaded = offset
         
         return DownloadResult(time.time() - time_s, downloaded, ex)
         
