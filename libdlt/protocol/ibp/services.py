@@ -374,25 +374,20 @@ class ProtocolService(object):
             
         cap = Capability(alloc.mapping.read)
         
+        tmpCommand = "{version} {command} {key} {wrmkey} {offset} {length} {timeout} \n".format(version = flags.IBPv031, 
+                                                                                                command = flags.IBP_LOAD, 
+                                                                                                key     = cap.key, 
+                                                                                                wrmkey  = cap.wrmKey,
+                                                                                                offset  = offset,
+                                                                                                length  = alloc.size,
+                                                                                                timeout = timeout)
         try:
-            tmpCommand = "{version} {command} {key} {wrmkey} {offset} {length} {timeout} \n".format(version = flags.IBPv031, 
-                                                                                                    command = flags.IBP_LOAD, 
-                                                                                                    key     = cap.key, 
-                                                                                                    wrmkey  = cap.wrmKey,
-                                                                                                    offset  = offset,
-                                                                                                    length  = alloc.size,
-                                                                                                    timeout = timeout)
-            try:
-                result = self._receive_data(depot, tmpCommand, alloc.size)
-            except:
-                #traceback.print_exc()
-                raise IBPError("Failed to download data")
-            if not result:
-                raise IBPError("Failed to download data")
-        except Exception as exp:
-            self._log.warn("IBPProtocol.Load [{alloc}]: Could not connect to {d} - {err}".format(alloc = alloc.id, err = exp, d = alloc.depot.endpoint))
+            result = self._receive_data(depot, tmpCommand, alloc.size)
+        except:
             #traceback.print_exc()
-            return None
+            raise IBPError("Failed to download data")
+        if not result:
+            raise IBPError("Failed to download data")
             
         if result["headers"].startswith("-"):
             self._log.warn("IBPProtocol.Load [{alloc}]: Failed to store resource - {err}".format(alloc = alloc.id, err = print_error(result["headers"])))
