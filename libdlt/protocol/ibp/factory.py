@@ -57,7 +57,7 @@ class IBPAdaptor(object):
         
     @info("IBPAdaptor")
     def read(self, **kwds):
-        return self._service.load(self._allocation, loop, **kwds)
+        return self._service.load(self._allocation, **kwds)
         
     @info("IBPAdaptor")
     def write(self, data, **kwds):
