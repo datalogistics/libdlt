@@ -409,15 +409,14 @@ class ProtocolService(object):
         
         try:
             sock.send(command)
-            header = sock.recv(1024)
-            if isinstance(header, bytes):
-                header = header.decode()
-            nl = header.index('\n') # throws exception if not found
-            recv = len(header) - nl - 1
-            if recv:
-                data = header[-recv:].encode()
+            buf = sock.recv(1024)
+            nl = buf.index(b'\n') + 1            
+            hdr = buf[:nl]
+            if nl:
+                data = buf[nl:]
             else:
                 data = b''
+            recv = len(data)
             while recv < size:
                 rsize = size - recv
                 r = sock.recv(rsize)
@@ -434,7 +433,7 @@ class ProtocolService(object):
         finally:
             sock.close()
 
-        return { "headers": header, "data": data }
+        return { "headers": hdr.decode(), "data": data }
 
 
     @debug("IBP.ProtocolService")

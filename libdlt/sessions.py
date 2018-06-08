@@ -291,7 +291,7 @@ class Session(object):
                         self.log.warn("Unable to download block - {}".format(exp))
                         continue
                     if data:
-                        self.log.info("[{}] Downloaded: {}-{}".format(rank, offset, offset+len(data)))
+                        self.log.info("Downloaded: {}-{}".format(offset, offset+len(data)))
                         self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
                         fh.seek(alloc.offset)
                         length = fh.write(data)
