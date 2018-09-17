@@ -1,9 +1,8 @@
 
+from libdlt.protocol.exceptions import AllocationError
 
-from exnodemanager.protocol.exceptions import AllocationException
-
-class IBPException(AllocationException):
+class IBPError(AllocationError):
     ''' Generic exception for IBP related errors '''
     def __init__(self, *args, **kwargs):
         self.ibpResponse = kwargs.pop("response", None)
-        super(IBPException, self).__init__(*args, **kwargs)
+        super(IBPError, self).__init__(*args, **kwargs)

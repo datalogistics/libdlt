@@ -3,10 +3,10 @@ import json
 import datetime
 import logging
 
-from lace import logging
-from lace.logging import trace
-from libdlt.protocol.exceptions import AllocationException
-from libdlt.protocol.ibp.allocation import Allocation, IBPExtent
+from libdlt.logging import getLogger, debug, info
+from libdlt.protocol.exceptions import AllocationError
+from libdlt.protocol.ibp.allocation import IBPExtent
+from libdlt.depot import Depot
 import libdlt.protocol.ibp.services as services
 import libdlt.protocol.ibp.flags as flags
 
@@ -20,17 +20,16 @@ def buildAllocation(json):
             json = json.loads(json)
         except Exception as exp:
             logger.warn("{func:>20}| Could not decode allocation - {exp}".format(func = "buildAllocation", exp = exp))
-            raise AllocationException("Could not decode json")
+            raise AllocationError("Could not decode json")
 
-    if type(json) is IBPExtent:
-        alloc = Allocation(json.to_JSON())
-    elif type(json) is dict:
-        alloc = Allocation(json)
-    elif type(json) is Allocation:
+    if isinstance(json, IBPExtent):
         alloc = json
+    elif isinstance(json, dict):
+        alloc = IBPExtent(json)
     else:
-        raise AllocationException("Invalid input type")
-            
+        raise AllocationError("Invalid input type")
+    
+    alloc.depot = Depot(alloc.location)
     tmpAdapter = IBPAdaptor(alloc)
     
     return tmpAdapter
@@ -62,20 +61,25 @@ class IBPAdaptor(object):
         
     @trace.info("IBPAdaptor")
     def write(self, data, **kwds):
-        self._service.store(self._allocation, data, len(data), **kwds)
+        try:
+            self._service.store(self._allocation, data, len(data), **kwds)
+        except:
+            import traceback
+            traceback.print_exc()
+            raise
         
     @trace.info("IBPAdaptor")
     def check(self, **kwds):
         depot_status = self._service.getStatus(self._allocation.depot)
         
         if not depot_status:
-            raise AllocationException("could not contact Depot")
+            raise AllocationError("could not contact Depot")
         
         alloc_status = self._service.probe(self._allocation)
         self._log.debug("IBPAdapter.Check: {status}".format(status = alloc_status))
         
         if not alloc_status:
-            raise AllocationException("Could not retrieve status")
+            raise AllocationError("Could not retrieve status")
         
         if "duration" in alloc_status:
             self._allocation.end = datetime.datetime.utcnow() + datetime.timedelta(seconds = int(alloc_status["duration"]))
@@ -87,14 +91,11 @@ class IBPAdaptor(object):
         host   = self._allocation.depot.host
         port   = self._allocation.depot.port
         offset = kwds.get("offset", 0)
-        size   = kwds.get("size", self._allocation.size - offset)
-        data = self._allocation.to_JSON()
-        del data['id']
-        if data.get('selfRef', None):
-            del data['selfRef']
-        dest_alloc = buildAllocation(data)
+        size   = kwds.get("size", self._allocation.depotSize - offset)
         
-        response = self._service.allocate(destination, offset, size, **kwds)
+        dest_alloc = buildAllocation(self._allocation.to_JSON())
+        
+        response = self._service.allocate(destination, size, **kwds)
         if not response:
             return False
         

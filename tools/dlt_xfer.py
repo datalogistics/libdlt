@@ -55,18 +55,24 @@ def main():
                         help='Output file')
     parser.add_argument('-V', '--visualize', type=str, default=None,
                         help='Periscope URL for visualization')
-    parser.add_argument('-D', '--debug', action='store_true',
+    parser.add_argument('-D', '--debug', type=str, default=None,
                         help='Include verbose logging output')
     parser.add_argument('-t', '--threads', type=int, default=5,
                         help='Number of threads for operation')
+    parser.add_argument('-r', '--recursive', action='store_true',
+                        help='Recurse into subdirectories')
 
     args = parser.parse_args()
     bs = args.bs
     df = args.depot_file
-    
-    if args.debug:
-        libdlt.logging.setLevel(10)
-    
+
+    if args.debug in ['TRACE', 'DEBUG']:
+        from lace import logging
+        log = logging.getLogger('libdlt')
+        log.setLevel(logging.DEBUG)
+        if args.debug == 'TRACE':
+            from lace.logging import trace
+            trace.setLevel(logging.DEBUG, True)
     depots = None
     if df:
         try:
@@ -80,18 +86,23 @@ def main():
                           bs=bs, depots=depots, threads=args.threads,
                           **{"viz_url": args.visualize})
     xfer = sess.upload if args.upload else sess.download
-        
+
+    flist = []
     for f in args.files:
-        diff, dsize, res = xfer(f, args.output, progress_cb=progress)
-        if dsize != res.size:
-            print ("\nWARNING: {}: transferred {} of {} bytes \
-(check depot file)".format(res.name,
-                           dsize,
-                           res.size))
+        if args.recursive and os.path.isdir(f):
+            for dirpath, dirnames, files in os.walk(f):
+                for n in files:
+                    flist.append(os.path.join(dirpath, n))
         else:
-            print ("{0} ({1} {2:.2f} MB/s) {3}".format(res.name, res.size,
-                                                       res.size/1e6/diff,
-                                                       res.selfRef))
+            flist.append(f)
+
+    for f in flist:
+        result = xfer(f, folder=args.output)
+        diff, res = result.time, result.exnode
+        print ("{0} ({1} {2:.2f} MB/s) {3}".format(res.name, res.size,
+                                                   res.size/1e6/diff,
+                                                   res.selfRef))
+
 
 if __name__ == "__main__":
     main()

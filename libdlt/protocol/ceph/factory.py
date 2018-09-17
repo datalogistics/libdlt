@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from uritools import urisplit
 
@@ -5,7 +6,7 @@ from unis.models import Extent
 from lace.logging import trace
 from libdlt.protocol.ceph.allocation import CephExtent
 from libdlt.protocol.ceph.services import ProtocolService
-from libdlt.protocol.exceptions import AllocationException
+from libdlt.protocol.exceptions import AllocationError
 
 ceph = ProtocolService()
 
@@ -15,25 +16,26 @@ def buildAllocation(obj):
         try:
             obj = json.loads(obj)
         except Exception as exp:
-            raise AllocationException("Could not decode json")
+            raise AllocationError("Could not decode json")
     if type(obj) is dict:
         alloc = CephExtent(obj)
     elif type(obj) in [CephExtent, Extent]:
         alloc = obj
     else:
-        raise AllocationException("Invalid input type")
+        raise AllocationError("Invalid input type")
     return CephAdaptor(alloc)
 
-@trace.info("Ceph.factory")
-def makeAllocation(data, offset, depot, **kwds):
+@info("Ceph.factory")
+async def makeAllocation(data, offset, depot, **kwds):
     alloc = CephExtent()
     pool = kwds.get("pool", "dlt")
+    loop = kwds.get("loop", asyncio.get_event_loop())
     oid = str(uuid.uuid4())
     alloc.location = "{0}/{1}/{2}".format(depot.endpoint, pool, oid)
     alloc.pool = pool
     alloc.offset = offset
     alloc.size = len(data)
-    ceph.write(oid, data, **kwds)
+    await ceph.write(oid, data, loop, **kwds)
     return CephAdaptor(alloc)
 
 class CephAdaptor(object):
@@ -45,12 +47,12 @@ class CephAdaptor(object):
     def getMetadata(self):
         return self._allocation
         
-    @trace.info("CephAdaptor")
-    def read(self, **kwds):
+    @info("CephAdaptor")
+    def read(self, loop, **kwds):
         o = urisplit(self._allocation.location)
         parts = o.path.split('/')
         size = self._allocation.size
-        return ceph.read(parts[1], parts[2], size, **kwds)
+        return ceph.read(parts[1], parts[2], size, loop, **kwds)
     
     @trace.info("CephAdaptor")
     def copy(self, depot, src_kwds, dst_kwds, **kwargs):

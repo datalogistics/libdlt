@@ -1,3 +1,4 @@
+import asyncio
 import concurrent.futures
 import getpass
 import os
@@ -6,7 +7,7 @@ import time
 import types
 import uuid
 
-from contextlib import contextmanager
+from functools import partial
 from itertools import cycle
 from lace import logging
 from lace.logging import trace
@@ -14,13 +15,19 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from uritools import urisplit
 from socketIO_client import SocketIO
 
+from lace import logging
+from lace.logging import trace
+
 from libdlt.util import util
 from libdlt.depot import Depot
 from libdlt.protocol import factory
+from libdlt.protocol.exceptions import AllocationError
 from libdlt.schedule import BaseDownloadSchedule, BaseUploadSchedule
 from libdlt.settings import DEPOT_TYPES, THREADS, COPIES, BLOCKSIZE, TIMEOUT
+from libdlt.result import UploadResult, DownloadResult, CopyResult
 from unis.models import Exnode, Service
 from unis.runtime import Runtime
+from unis.utils.async import make_async
 
 class Session(object):
     __WS_MTYPE = {
@@ -36,7 +43,18 @@ class Session(object):
     
     @trace.debug("Session")
     def __init__(self, url, depots, bs=BLOCKSIZE, timeout=TIMEOUT, threads=THREADS, **kwargs):
+<<<<<<< HEAD
         self._runtime = Runtime(url, defer_update=True, auto_sync=False, subscribe=False, inline=True)
+=======
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        self._external_rt = isinstance(url, Runtime)
+        self._runtime = url if isinstance(url, Runtime) else Runtime(url, proxy={'defer_update': True, 'subscribe': False})
+>>>>>>> asyncio
         self._runtime.exnodes.createIndex("name")
         self._do_flush = True
         self._blocksize = bs if isinstance(bs, int) else int(util.human2bytes(bs))
@@ -45,13 +63,22 @@ class Session(object):
         self._depots = {}
         self._threads = threads
         self._viz = kwargs.get("viz_url", None)
+<<<<<<< HEAD
         self.log = logging.getLogger()
+=======
+        self._jobs = asyncio.Queue()
+        self.log = logging.getLogger('libdlt')
+>>>>>>> asyncio
         
         if not depots:
             for depot in self._runtime.services.where(lambda x: x.serviceType in DEPOT_TYPES):
                 self._depots[depot.selfRef] = depot
         elif isinstance(depots, str):
+<<<<<<< HEAD
             with Runtime(depots, auto_sync=False, subscribe=False) as rt:
+=======
+            with Runtime(depots) as rt:
+>>>>>>> asyncio
                 for depot in rt.services.where(lambda x: x.serviceType in DEPOT_TYPES):
                     self._depots[depot.selfRef] = depot
         elif isinstance(depots, dict):
@@ -65,9 +92,13 @@ class Session(object):
             raise ValueError("No depots found for session, unable to continue")
     
     @trace.debug("Session")
+<<<<<<< HEAD
     def _viz_register(self, name, size, conns, cb):
         if cb:
             cb(None, name, size, 0, 0)
+=======
+    def _viz_register(self, name, size, conns):
+>>>>>>> asyncio
         if self._viz:
             try:
                 uid = uuid.uuid4().hex
@@ -86,9 +117,13 @@ class Session(object):
         return None
             
     @trace.debug("Session")
+<<<<<<< HEAD
     def _viz_progress(self, sock, name, tsize, depot, size, offset, cb):
         if cb:
             cb(depot, name, tsize, size, offset)
+=======
+    def _viz_progress(self, sock, depot, size, offset):
+>>>>>>> asyncio
         if self._viz:
             try:
                 d = Depot(depot)
@@ -104,85 +139,148 @@ class Session(object):
                 sock[1].emit(self.__WS_MTYPE['p'], msg)
             except Exception as e:
                 pass
+    
+
+    @trace.debug("Session")
+    def _generate_jobs(self, step, size, copies):
+        for chunk in range(0, size, step):
+            for _ in range(copies):
+                self._jobs.put_nowait((chunk, step))
+    
+    @trace.debug("Session")
+    async def _upload_chunks(self, path, schedule, duration, sock, rank):
+        uploaded = 0
+        allocs = []
+        with open(path, 'rb') as fh:
+            while not self._jobs.empty():
+                offset, size = await self._jobs.get()
+                fh.seek(offset)
+                data = await asyncio.get_event_loop().run_in_executor(None, fh.read, size)
+                rsize = len(data)
+                
+                ## Upload chunk ##
+                try:
+                    d = Depot(schedule.get({"offset": offset, "size": len(data), "data": data}))
+                except Exception as exp:
+                    self.log.warn("Failed to schedule chunk upload - {}".format(exp))
+                    continue
+                try:
+                    fn = partial(factory.makeAllocation, duration=duration,
+                                 **self._depots[d.endpoint].to_JSON())
+                    alloc = await asyncio.get_event_loop().run_in_executor(None, fn, data, offset, d)
+                except AllocationError:
+                    self._jobs.put_nowait((offset, size))
+                    continue
+                
+                ## Create Allocation ##
+                alloc = alloc.getMetadata()
+                self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
+                self.log.info("[{}] Uploaded: {}-{}".format(rank, offset, offset+rsize))
+                allocs.append(alloc)
+                uploaded += len(data)
+
+        return (uploaded, allocs)
         
-    #### TODO ####
-    #  Upload assumes sucessful push to all depots
-    #  Needs better success/failure metrics
-    ##############
     @trace.info("Session")
-    def upload(self, filepath, folder=None, copies=COPIES, schedule=BaseUploadSchedule(), progress_cb=None, **kwargs):
-        def _chunked(fh, bs, size):
-            offset = 0
-            while True:
-                bs = min(bs, size - offset)
-                data = fh.read(bs)
-                if not data:
-                    return
-                yield (offset, bs, data)
-                offset += bs
-            
+    def upload(self, path, filename=None, folder=None, copies=COPIES, duration=None, schedule=None):
+        async def _awrapper(schedule, sock):
+            workers = [self._upload_chunks(path, schedule, duration, sock, r) for r in range(self._threads)]
+            result = await asyncio.gather(*workers)
+            return result
+        
+        schedule = schedule or BaseUploadSchedule()
+        ## Create Folder ##
         if isinstance(folder, str):
             do_flush = self._do_flush
             self._do_flush = False
             folder = self.mkdir(folder)
             self._do_flush = do_flush
-        
-        stat = os.stat(filepath)
-        ex = Exnode({ "parent": folder, "created": int(time.time() * 1000000), "mode": "file", "size": stat.st_size,
-                      "permission": format(stat.st_mode & 0o0777, 'o'), "owner": getpass.getuser(),
-                      "name": os.path.basename(filepath) })
+            
+        ## Setup ##
+        stat = os.stat(path)
+        ex = Exnode({ "parent": folder, "created": int(time.time() * 1000000), "mode": "file",
+                      "size": stat.st_size, "permission": format(stat.st_mode & 0o0777, 'o'),
+                      "owner": getpass.getuser(), "name": filename or os.path.basename(path) })
         ex.group = ex.owner
         ex.updated = ex.created
-        self._runtime.insert(ex, commit=True)
-        
-        # register download with Periscope
-        sock = self._viz_register(ex.name, ex.size, len(self._depots), progress_cb)
-        
-        executor = ThreadPoolExecutor(max_workers=self._threads)
-        futures = []
-        time_s = time.time()
-        
+        sock = self._viz_register(ex.name, ex.size, len(self._depots))
         schedule.setSource(self._depots)
-        with open(filepath, "rb") as fh:
-            for offset, size, data in _chunked(fh, self._blocksize, ex.size):
-                for n in range(copies):
-                    d = Depot(schedule.get({"offset": offset, "size": size, "data": data}))
-                    futures.append(executor.submit(factory.makeAllocation, data, offset, d,
-                                                   **self._depots[d.endpoint].to_JSON(), **kwargs))
-                    
-        for future in as_completed(futures):
-            ext = future.result().getMetadata()
-            self._viz_progress(sock, ex.name, ex.size, ext.location, ext.size, ext.offset, progress_cb)
-            self._runtime.insert(ext, commit=True)
-            ext.parent = ex
-            ex.extents.append(ext)
-            
+
+        time_s = time.time()
+        uploaded = 0
+        all_allocs = []
+        ## Generate tasks ##
+        self._generate_jobs(self._blocksize, ex.size, copies)
+        for upsize, allocs in make_async(_awrapper, schedule, sock):
+            uploaded += upsize
+            all_allocs.extend(allocs)
+        
         time_e = time.time()
-            
+        self._runtime.insert(ex, commit=True)
+        for alloc in all_allocs:
+            alloc.parent = ex
+            alloc.getObject().__dict__['selfRef'] = ''
+            del alloc.getObject().__dict__['function']
+            ex.extents.append(alloc)
+            self._runtime.insert(alloc, commit=True)
+
         if self._do_flush:
             self._runtime.flush()
-        return (time_e - time_s, ex.size, ex)
+
+        return UploadResult(time_e - time_s, uploaded, ex)
     
-    @trace.info("Session")
-    def download(self, href, filepath=None, length=0, offset=0, schedule=BaseDownloadSchedule(), progress_cb=None):
-        def offsets(size):
-            i = 0
-            while i < size:
-                ext = schedule.get({"offset": i})
-                yield ext
-                i += ext.size
-        def _download_chunk(ext):
+    
+    @trace.debug("Session")
+    async def _download_chunks(self, filepath, schedule, sock, rank):
+        def _write(fh, offset, data):
+            async def _noop():
+                return 0
+            fh.seek(offset)
+            if data:
+                return asyncio.get_event_loop().run_in_executor(None, fh.write, data)
+            return _noop()
+        fh = open(filepath, 'wb')
+        downloaded = 0
+        while not self._jobs.empty():
+            offset, end = self._jobs.get_nowait()
             try:
-                alloc = factory.buildAllocation(ext)
-                d = Depot(ext.location)
-                if d.endpoint not in self._depots:
-                    raise Exception("Unkown depot {}".format(d.endpoint))
-                return ext, alloc.read(**self._depots[d.endpoint].to_JSON())
-            except Exception as exp:
-                raise exp
+                alloc = schedule.get({"offset": offset})
+            except IndexError as exp:
                 self.log.warn(exp)
-            return ext, False
-        ex = self._runtime.find(href)
+                continue
+            if alloc.offset + alloc.size < end:
+                await self._jobs.put((offset + alloc.size, end))
+            
+            ## Download chunk ##
+            d = Depot(alloc.location)
+            service = factory.buildAllocation(alloc) 
+            loop = asyncio.get_event_loop()
+            try:
+                fn = partial(service.read, **self._depots[d.endpoint].to_JSON())
+                data = await loop.run_in_executor(None, fn)
+            except AllocationError as exp:
+                self.log.warn("Unable to download block - {}".format(exp))
+                await self._jobs.put((offset, offset + alloc.size))
+                continue
+            if data:
+                self.log.info("[{}] Downloaded: {}-{}".format(rank, offset, offset+len(data)))
+                self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
+                length = await _write(fh, alloc.offset, data)
+                downloaded += length
+            else:
+                await self._jobs.put((offset, offset + alloc.size))
+        
+        fh.close()
+        return downloaded
+        
+    @trace.info("Session")
+    def download(self, href, folder=None, length=0, offset=0, schedule=None):
+        async def _awrapper(folder, schedule, sock):
+            workers = [self._download_chunks(folder, schedule, sock, r) for r in range(self._threads)]
+            return await asyncio.gather(*workers)
+
+        schedule = schedule or BaseDownloadSchedule()
+        ex = next(self._runtime.exnodes.where({'selfRef': href}))
         allocs = ex.extents
         schedule.setSource(allocs)
         locs = {}
@@ -193,28 +291,44 @@ class Session(object):
                 locs[alloc.location] = []
             locs[alloc.location].append(alloc)
         
-        if not filepath:
-            filepath = ex.name
-        
+        if not folder:
+            folder = ex.name
+            
         # register download with Periscope
         sock = self._viz_register(ex.name, ex.size, len(locs), progress_cb)
         
         time_s = time.time()
-        dsize = 0
-        with open(filepath, "wb") as fh:
-            with ThreadPoolExecutor(max_workers=self._threads) as executor:
-                for alloc, data in executor.map(_download_chunk, offsets(ex.size)):
-                    if not data:
+        self._jobs.put_nowait((0, ex.size))
+        if self._threads > 1:
+            downloaded = sum(make_async(_awrapper, folder, schedule, sock))
+        else:
+            offset = 0
+            with open(folder, 'wb') as fh:
+                while offset < ex.size:
+                    try:
+                        alloc = schedule.get({"offset": offset})
+                    except IndexError as exp:
+                        self.log.warn(exp)
+                        break
+                    d = Depot(alloc.location)
+                    service = factory.buildAllocation(alloc)
+                    try:
+                        data = service.read(**self._depots[d.endpoint].to_JSON())
+                    except AllocationError as exp:
+                        self.log.warn("Unable to download block - {}".format(exp))
                         continue
-                    dsize += alloc.size
-                    self._viz_progress(sock, ex.name, ex.size, alloc.location, alloc.size, alloc.offset, progress_cb)
-                    fh.seek(alloc.offset)
-                    fh.write(data)
+                    if data:
+                        self.log.info("Downloaded: {}-{}".format(offset, offset+len(data)))
+                        self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
+                        fh.seek(alloc.offset)
+                        length = fh.write(data)
+                        offset += length
+            downloaded = offset
         
-        return (time.time() - time_s, dsize, ex)
+        return DownloadResult(time.time() - time_s, downloaded, ex)
         
     @trace.info("Session")
-    def copy(self, href, download_schedule=BaseDownloadSchedule(), upload_schedule=BaseUploadSchedule(), progress_cb=None, **kwargs):
+    def copy(self, href, duration=None, download_schedule=BaseDownloadSchedule(), upload_schedule=BaseUploadSchedule()):
         def offsets(size):
             i = 0
             while i < size:
@@ -234,26 +348,28 @@ class Session(object):
                     self._viz_progress(sock_down, name, size, ext.location, ext.size, ext.offset, progress_cb)
                     self._viz_progress(sock_up, name, size, dst_ext.location, dst_ext.size, dst_ext.offset, progress_cb)
                     return (ext, dst_ext)
-                except:
-                    raise
+                except Exception as exp:
+                    self.log.warn ("READ Error: {}".format(exp))
+                return ext, False
             return _f
-                
-        ex = self._runtime.find(href)
+        
+        ex = next(self._runtime.exnodes.where({'selfRef': href}))
         allocs = ex.extents
         futures = []
         download_schedule.setSource(allocs)
         upload_schedule.setSource(self._depots)
         
-        sock_up = self._viz_register("{}_upload".format(ex.name), ex.size, len(self._depots), progress_cb)
-        sock_down = self._viz_register("{}_download".format(ex.name), ex.size, len(self._depots), progress_cb)
+        sock_up = self._viz_register("{}_upload".format(ex.name), ex.size, len(self._depots))
+        sock_down = self._viz_register("{}_download".format(ex.name), ex.size, len(self._depots))
+        copied = 0
         time_s = time.time()
         with ThreadPoolExecutor(max_workers=self._threads) as executor:
-            for src_alloc, dst_alloc  in executor.map(_copy_chunk(ex.name, ex.size, sock_down, sock_up), offsets(ex.size)):
-                if dst_alloc:
-                    alloc = dst_alloc
-                    self._runtime.insert(alloc, commit=True)
-                    alloc.parent = ex
-                    ex.extents.append(alloc)
+            for src_alloc, dst_alloc  in executor.map(_copy_chunk(sock_down, sock_up), offsets(ex.size)):
+                alloc = dst_alloc
+                self._runtime.insert(alloc, commit=True)
+                alloc.parent = ex
+                ex.extents.append(alloc)
+                copied += alloc.size
         
         time_e = time.time()
         
@@ -307,18 +423,25 @@ class Session(object):
             self._runtime.flush()
         
         return root
+
+    @trace.debug("Session")
+    def annotate(self, exnode):
+        class _modifier:
+            def __getattr__(self, n):
+                exnode.__getattribute__(n)
+            def __setattr__(self, n, v):
+                exnode.__setattr__(n, v)
+                exnode.commit(n)
+            def __enter__(mod):
+                pass
+            def __exit__(mod, ex_ty, ex_val, tb):
+                self._runtime.flush()
+        return _modifier()
     
-    @trace.info("Session")
-    @contextmanager
-    def annotate(self, ex):
-        store = ex.isAutoCommit()
-        ex.setAutoCommit(True)
-        yield ex
-        ex.setAutoCommit(store)
-        self._runtime.flush()
     
     def __enter__(self):
-        pass
+        return self
 
-    def __exit__(self):
-        self._runtime.shutdown()
+    def __exit__(self, ex_ty, ex_val, tb):
+        if not self._external_rt:
+            self._runtime.shutdown()
