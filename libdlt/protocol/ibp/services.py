@@ -338,18 +338,18 @@ class ProtocolService(object):
                                                                                                                                  timeout = timeout)
             result = self._dispatch_command(source.depot, tmpCommand)
             if not result:
-                return None
+                raise IBPError("No response to send command")
             result = result.split(" ")
         except Exception as exp:
             self._log.warn("IBPProtocol.Send [{alloc}]: Could not connect to {host1}:{port1} - {e}".format(alloc = alloc.id, host1 = source.host, port1 = source.port, e = exp))
-            return None
+            raise IBPError(exp)
 
         if result[0].startswith("-"):
             self._log.warn("IBPProtocol.Send [{alloc}]: Failed to move allocation - {err}".format(alloc = alloc.id, err = print_error(result[0])))
-            return None
+            raise IBPError("Failed to move allocation - {}".format(print_error(result[0])))
         else:
             return duration
-                         
+        
 
 
     '''
