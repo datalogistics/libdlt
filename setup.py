@@ -17,7 +17,6 @@ setup(
     install_requires=[
         "setuptools",
         "lace",
-#        "rados",
         "unisrt",
         "uritools",
         "jsonschema",
