@@ -1,7 +1,7 @@
 import asyncio
 
-import rados.core as rados
-from rados.core import Operation, ReadOperation, WriteOperation
+import libdlt.protocol.ceph.rados.core as rados
+from libdlt.protocol.ceph.rados.core import Operation, ReadOperation, WriteOperation
 
 class Ioctx:
     pass
