@@ -1,15 +1,14 @@
 
 import json
 import datetime
-import logging
 
-from libdlt.logging import getLogger, debug, info
 from libdlt.protocol.exceptions import AllocationError
 from libdlt.protocol.ibp.allocation import IBPExtent
 from libdlt.depot import Depot
 import libdlt.protocol.ibp.services as services
 import libdlt.protocol.ibp.flags as flags
 
+from lace import logging
 from lace.logging import trace
 from unis.models import Extent
 
