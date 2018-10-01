@@ -10,6 +10,7 @@ from libdlt.depot import Depot
 import libdlt.protocol.ibp.services as services
 import libdlt.protocol.ibp.flags as flags
 
+from lace.logging import trace
 from unis.models import Extent
 
 # construct adaptor from existing metadata

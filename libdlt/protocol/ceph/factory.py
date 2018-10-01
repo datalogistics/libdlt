@@ -25,7 +25,7 @@ def buildAllocation(obj):
         raise AllocationError("Invalid input type")
     return CephAdaptor(alloc)
 
-@info("Ceph.factory")
+@trace.info("Ceph.factory")
 async def makeAllocation(data, offset, depot, **kwds):
     alloc = CephExtent()
     pool = kwds.get("pool", "dlt")
@@ -47,7 +47,7 @@ class CephAdaptor(object):
     def getMetadata(self):
         return self._allocation
         
-    @info("CephAdaptor")
+    @trace.info("CephAdaptor")
     def read(self, loop, **kwds):
         o = urisplit(self._allocation.location)
         parts = o.path.split('/')

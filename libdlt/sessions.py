@@ -43,9 +43,6 @@ class Session(object):
     
     @trace.debug("Session")
     def __init__(self, url, depots, bs=BLOCKSIZE, timeout=TIMEOUT, threads=THREADS, **kwargs):
-<<<<<<< HEAD
-        self._runtime = Runtime(url, defer_update=True, auto_sync=False, subscribe=False, inline=True)
-=======
         try:
             loop = asyncio.get_event_loop()
         except RuntimeError:
@@ -54,7 +51,6 @@ class Session(object):
         
         self._external_rt = isinstance(url, Runtime)
         self._runtime = url if isinstance(url, Runtime) else Runtime(url, proxy={'defer_update': True, 'subscribe': False})
->>>>>>> asyncio
         self._runtime.exnodes.createIndex("name")
         self._do_flush = True
         self._blocksize = bs if isinstance(bs, int) else int(util.human2bytes(bs))
@@ -63,22 +59,14 @@ class Session(object):
         self._depots = {}
         self._threads = threads
         self._viz = kwargs.get("viz_url", None)
-<<<<<<< HEAD
-        self.log = logging.getLogger()
-=======
         self._jobs = asyncio.Queue()
         self.log = logging.getLogger('libdlt')
->>>>>>> asyncio
         
         if not depots:
             for depot in self._runtime.services.where(lambda x: x.serviceType in DEPOT_TYPES):
                 self._depots[depot.selfRef] = depot
         elif isinstance(depots, str):
-<<<<<<< HEAD
-            with Runtime(depots, auto_sync=False, subscribe=False) as rt:
-=======
             with Runtime(depots) as rt:
->>>>>>> asyncio
                 for depot in rt.services.where(lambda x: x.serviceType in DEPOT_TYPES):
                     self._depots[depot.selfRef] = depot
         elif isinstance(depots, dict):
@@ -92,13 +80,7 @@ class Session(object):
             raise ValueError("No depots found for session, unable to continue")
     
     @trace.debug("Session")
-<<<<<<< HEAD
-    def _viz_register(self, name, size, conns, cb):
-        if cb:
-            cb(None, name, size, 0, 0)
-=======
     def _viz_register(self, name, size, conns):
->>>>>>> asyncio
         if self._viz:
             try:
                 uid = uuid.uuid4().hex
@@ -117,13 +99,7 @@ class Session(object):
         return None
             
     @trace.debug("Session")
-<<<<<<< HEAD
-    def _viz_progress(self, sock, name, tsize, depot, size, offset, cb):
-        if cb:
-            cb(depot, name, tsize, size, offset)
-=======
     def _viz_progress(self, sock, depot, size, offset):
->>>>>>> asyncio
         if self._viz:
             try:
                 d = Depot(depot)

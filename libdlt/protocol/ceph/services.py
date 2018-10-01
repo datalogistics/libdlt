@@ -9,7 +9,7 @@ class ProtocolService(object):
     def __init__(self):
         self.cluster_cache = dict()
         
-    @debug("Ceph.ProtocolService")
+    @trace.debug("Ceph.ProtocolService")
     async def _get_cluster(self, loop, **kwds):
         conf = kwds.get("config", '')
         name = kwds.get("client_id", 'client.admin')
@@ -35,7 +35,7 @@ class ProtocolService(object):
         ioctx.write_full(dst_oid, data)
         ioctx.close()
     
-    @info("Ceph.ProtocolService")
+    @trace.info("Ceph.ProtocolService")
     async def write(self, oid, data, loop, **kwds):
         cluster = await self._get_cluster(loop, **kwds)
         pool = kwds.get("pool", "dlt")
@@ -43,7 +43,7 @@ class ProtocolService(object):
         await loop.run_in_executor(None, ioctx.write_full, oid, data)
         ioctx.close()
         
-    @info("Ceph.ProtocolService")
+    @trace.info("Ceph.ProtocolService")
     async def read(self, p, oid, size, loop, **kwds):
         cluster = await self._get_cluster(loop, **kwds)
         ioctx = cluster.open_ioctx(p)
