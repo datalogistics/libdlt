@@ -1,6 +1,6 @@
 import asyncio
 
-from rados.core import Cluster
+from libdlt.protocol.ceph.rados.core import Cluster
 
 from lace.logging import trace
 
