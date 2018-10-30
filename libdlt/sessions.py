@@ -93,19 +93,21 @@ class Session(object):
                        "timestamp": time.time()*1e3
                    }
                 sock.emit(self.__WS_MTYPE['r'], msg)
-                return uid, sock
+                return uid, sock, name, size
             except Exception as e:
                 self.log.warn(e)
         return None
             
     @trace.debug("Session")
-    def _viz_progress(self, sock, depot, size, offset):
+    def _viz_progress(self, sock, depot, size, offset, cb):
         if self._viz:
             try:
                 d = Depot(depot)
                 host = str(d.host)
                 if host in self.__static_ips:
                     host = self.__static_ips[host]
+                if cb:
+                    cb(d, sock[2], sock[3], size, offset)
                 msg = {"sessionId": sock[0],
                        "host":  host,
                        "length": size,
@@ -124,7 +126,7 @@ class Session(object):
                 self._jobs.put_nowait((chunk, step))
     
     @trace.debug("Session")
-    async def _upload_chunks(self, path, schedule, duration, sock, rank):
+    async def _upload_chunks(self, path, schedule, duration, sock, rank, progress_cb):
         uploaded = 0
         allocs = []
         with open(path, 'rb') as fh:
@@ -150,7 +152,7 @@ class Session(object):
                 
                 ## Create Allocation ##
                 alloc = alloc.getMetadata()
-                self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
+                self._viz_progress(sock, alloc.location, alloc.size, alloc.offset, progress_cb)
                 self.log.info("[{}] Uploaded: {}-{}".format(rank, offset, offset+rsize))
                 allocs.append(alloc)
                 uploaded += len(data)
@@ -158,9 +160,9 @@ class Session(object):
         return (uploaded, allocs)
         
     @trace.info("Session")
-    def upload(self, path, filename=None, folder=None, copies=COPIES, duration=None, schedule=None):
+    def upload(self, path, filename=None, folder=None, copies=COPIES, duration=None, schedule=None, progress_cb=None):
         async def _awrapper(schedule, sock):
-            workers = [self._upload_chunks(path, schedule, duration, sock, r) for r in range(self._threads)]
+            workers = [self._upload_chunks(path, schedule, duration, sock, r, progress_cb) for r in range(self._threads)]
             result = await asyncio.gather(*workers)
             return result
         
@@ -207,7 +209,7 @@ class Session(object):
     
     
     @trace.debug("Session")
-    async def _download_chunks(self, filepath, schedule, sock, rank):
+    async def _download_chunks(self, filepath, schedule, sock, rank, progress_cb):
         def _write(fh, offset, data):
             async def _noop():
                 return 0
@@ -240,7 +242,7 @@ class Session(object):
                 continue
             if data:
                 self.log.info("[{}] Downloaded: {}-{}".format(rank, offset, offset+len(data)))
-                self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
+                self._viz_progress(sock, alloc.location, alloc.size, alloc.offset, progress_cb)
                 length = await _write(fh, alloc.offset, data)
                 downloaded += length
             else:
@@ -250,9 +252,9 @@ class Session(object):
         return downloaded
         
     @trace.info("Session")
-    def download(self, href, folder=None, length=0, offset=0, schedule=None):
+    def download(self, href, folder=None, length=0, offset=0, schedule=None, progress_cb=None):
         async def _awrapper(folder, schedule, sock):
-            workers = [self._download_chunks(folder, schedule, sock, r) for r in range(self._threads)]
+            workers = [self._download_chunks(folder, schedule, sock, r, progress_cb) for r in range(self._threads)]
             return await asyncio.gather(*workers)
 
         schedule = schedule or BaseDownloadSchedule()
@@ -271,7 +273,7 @@ class Session(object):
             folder = ex.name
             
         # register download with Periscope
-        sock = self._viz_register(ex.name, ex.size, len(locs), progress_cb)
+        sock = self._viz_register(ex.name, ex.size, len(locs))
         
         time_s = time.time()
         self._jobs.put_nowait((0, ex.size))
@@ -295,7 +297,7 @@ class Session(object):
                         continue
                     if data:
                         self.log.info("Downloaded: {}-{}".format(offset, offset+len(data)))
-                        self._viz_progress(sock, alloc.location, alloc.size, alloc.offset)
+                        self._viz_progress(sock, alloc.location, alloc.size, alloc.offset, progress_cb)
                         fh.seek(alloc.offset)
                         length = fh.write(data)
                         offset += length
@@ -304,7 +306,7 @@ class Session(object):
         return DownloadResult(time.time() - time_s, downloaded, ex)
         
     @trace.info("Session")
-    def copy(self, href, duration=None, download_schedule=BaseDownloadSchedule(), upload_schedule=BaseUploadSchedule()):
+    def copy(self, href, duration=None, download_schedule=BaseDownloadSchedule(), upload_schedule=BaseUploadSchedule(), progress_cb=None):
         def offsets(size):
             i = 0
             while i < size:
