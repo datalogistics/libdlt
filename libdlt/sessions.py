@@ -9,8 +9,6 @@ import uuid
 
 from functools import partial
 from itertools import cycle
-from lace import logging
-from lace.logging import trace
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from uritools import urisplit
 from socketIO_client import SocketIO
@@ -64,11 +62,11 @@ class Session(object):
         
         if not depots:
             for depot in self._runtime.services.where(lambda x: x.serviceType in DEPOT_TYPES):
-                self._depots[depot.selfRef] = depot
+                self._depots[depot.accessPoint] = depot
         elif isinstance(depots, str):
             with Runtime(depots) as rt:
                 for depot in rt.services.where(lambda x: x.serviceType in DEPOT_TYPES):
-                    self._depots[depot.selfRef] = depot
+                    self._depots[depot.accessPoint] = depot
         elif isinstance(depots, dict):
             for name, depot in depots.items():
                 if isinstance(depot, dict) and depot["enabled"]:
@@ -143,8 +141,8 @@ class Session(object):
                     self.log.warn("Failed to schedule chunk upload - {}".format(exp))
                     continue
                 try:
-                    fn = partial(factory.makeAllocation, duration=duration,
-                                 **self._depots[d.endpoint].to_JSON())
+                    fn = partial(factory.makeAllocation, **{**{'duration': duration},
+                                                            **self._depots[d.endpoint].to_JSON()})
                     alloc = await asyncio.get_event_loop().run_in_executor(None, fn, data, offset, d)
                 except AllocationError:
                     self._jobs.put_nowait((offset, size))
