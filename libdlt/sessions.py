@@ -59,6 +59,7 @@ class Session(object):
         self._viz = kwargs.get("viz_url", None)
         self._jobs = asyncio.Queue()
         self.log = logging.getLogger('libdlt')
+        self._record = []
         
         if not depots:
             for depot in self._runtime.services.where(lambda x: x.serviceType in DEPOT_TYPES):
@@ -76,6 +77,9 @@ class Session(object):
 
         if not len(self._depots):
             raise ValueError("No depots found for session, unable to continue")
+
+    def get_record(self):
+        return self._record
     
     @trace.debug("Session")
     def _viz_register(self, name, size, conns):
@@ -150,6 +154,7 @@ class Session(object):
                 
                 ## Create Allocation ##
                 alloc = alloc.getMetadata()
+                self._record.append(('U', alloc, offset, rsize))
                 self._viz_progress(sock, alloc.location, alloc.size, alloc.offset, progress_cb)
                 self.log.info("[{}] Uploaded: {}-{}".format(rank, offset, offset+rsize))
                 allocs.append(alloc)
@@ -229,7 +234,7 @@ class Session(object):
             
             ## Download chunk ##
             d = Depot(alloc.location)
-            service = factory.buildAllocation(alloc) 
+            service = factory.buildAllocation(alloc)
             loop = asyncio.get_event_loop()
             try:
                 fn = partial(service.read, **self._depots[d.endpoint].to_JSON())
@@ -239,6 +244,7 @@ class Session(object):
                 await self._jobs.put((offset, offset + alloc.size))
                 continue
             if data:
+                self._record.append(('D', alloc, offset, len(data)))
                 self.log.info("[{}] Downloaded: {}-{}".format(rank, offset, offset+len(data)))
                 self._viz_progress(sock, alloc.location, alloc.size, alloc.offset, progress_cb)
                 length = await _write(fh, alloc.offset, data)
@@ -250,7 +256,7 @@ class Session(object):
         return downloaded
         
     @trace.info("Session")
-    def download(self, href, folder=None, length=0, offset=0, schedule=None, progress_cb=None):
+    def download(self, href, folder=None, length=0, offset=0, schedule=None, progress_cb=None, filename=None):
         async def _awrapper(folder, schedule, sock):
             workers = [self._download_chunks(folder, schedule, sock, r, progress_cb) for r in range(self._threads)]
             return await asyncio.gather(*workers)
@@ -268,7 +274,7 @@ class Session(object):
             locs[alloc.location].append(alloc)
         
         if not folder:
-            folder = ex.name
+            folder = filename or ex.name
             
         # register download with Periscope
         sock = self._viz_register(ex.name, ex.size, len(locs))

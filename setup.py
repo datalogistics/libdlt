@@ -23,7 +23,10 @@ setup(
         "jsonschema",
         "socketIO-client",
         "requests",
-        "six>=1.8.0"
+        "six>=1.8.0",
+        "google-api-python-client",
+        "google-auth-httplib2",
+        "google-auth-oauthlib"
     ],
     dependency_links=[
         "git+https://github.com/periscope-ps/lace.git/@master#egg=lace",
@@ -39,7 +42,8 @@ setup(
             'eodn_feed = tools.eodn_feed:main',
             'eodn_download = tools.downloader:main',
             'dlt_cli = tools.ncli:main',
-            'dlt_xfer = tools.dlt_xfer:main'
+            'dlt_xfer = tools.dlt_xfer:main',
+            'pid_xfer = tools.pid_xfer:main'
         ]
     },
     options = {'bdist_rpm':{'post_install' : 'scripts/rpm_postinstall.sh'}},
