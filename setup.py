@@ -24,9 +24,10 @@ setup(
         "socketIO-client",
         "requests",
         "six>=1.8.0",
-        "google-api-python-client",
-        "google-auth-httplib2",
-        "google-auth-oauthlib"
+        #"google-auth",
+        #"google-api-python-client",
+        #"google-auth-httplib2",
+        #"google-auth-oauthlib"
     ],
     dependency_links=[
         "git+https://github.com/periscope-ps/lace.git/@master#egg=lace",
