@@ -37,7 +37,10 @@ def buildAllocation(json):
 # create a new object and metadata given data and depot target
 @trace.info("IBP.factory")
 def makeAllocation(data, offset, depot, **kwds):
-    return IBPAdaptor(data=data, offset=offset, depot=depot, **kwds)
+    try:
+        return IBPAdaptor(data=data, offset=offset, depot=depot, **kwds)
+    except:
+        raise AllocationError("Failed to generate allocation")
     
 class IBPAdaptor(object):
     @trace.debug("IBPAdaptor")

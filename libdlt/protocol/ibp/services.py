@@ -225,7 +225,6 @@ class ProtocolService(object):
             alloc.alloc_offset = offset
             alloc.alloc_length = size
         except:
-            #traceback.print_exc()
             raise
         return alloc
     
