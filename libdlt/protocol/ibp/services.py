@@ -321,7 +321,7 @@ class ProtocolService(object):
             duration = kwargs["duration"]
         if "offset" in kwargs:
             offset = kwars["offset"]
-        size = kwargs.get("size", source.depotSize)
+        size = kwargs.get("size", source.size)
 
         src_cap  = Capability(source.mapping.read)
         dest_cap = Capability(destination.mapping.write)
