@@ -4,40 +4,22 @@ import os
 import argparse
 import json
 import libdlt
+from unis.exceptions import CollectionIndexError
 from libdlt.util.common import print_progress
 
 SYS_PATH="/etc/periscope"
 USER_DEPOTS=os.path.join(SYS_PATH, "depots.conf")
 UNIS_URL = "http://unis.crest.iu.edu:8890"
-DEPOTS = {
-    "ceph://stark": {
-        "enabled": False,
-        "client_id": "client.admin",
-        "clustername": 'ceph',
-        "config": "/etc/ceph/ceph.conf",
-        "pool": "test",
-        "crush_map": None
-    },
-    "ceph://um-mon01.osris.org": {
-        "enabled": True,
-        "client_id": "client.dlt",
-        "clustername": 'osiris',
-        "config": "/etc/ceph/osiris.conf",
-        "pool": "dlt",
-        "crush_map": None
-    },
-    "ibp://ibp2.crest.iu.edu:6714": {
-        "enabled": True,
-        "duration": 2592000
-    }
-}
+DEPOTS = {}
+XFER_TOTAL = 0
 
 def progress(depot, name, total, size, offset):
+    global XFER_TOTAL
     if not size:
-        progress.curr = 0
+        XFER_TOTAL = 0
     else:
-        progress.curr += size
-    print_progress(progress.curr, total, name)
+        XFER_TOTAL += size
+    print_progress(XFER_TOTAL, total, name)
 
 def main():
     parser = argparse.ArgumentParser(description="DLT File Transfer Tool")
@@ -97,8 +79,12 @@ def main():
             flist.append(f)
 
     for f in flist:
-        result = xfer(f, folder=args.output)
-        diff, res = result.time, result.exnode
+        try:
+            result = xfer(f, folder=args.output, progress_cb=progress)
+            diff, res = result.time, result.exnode
+        except CollectionIndexError as e:
+            print ("ERROR: invalid file or URL: {}".format(e))
+            exit(1)
         print ("{0} ({1} {2:.2f} MB/s) {3}".format(res.name, res.size,
                                                    res.size/1e6/diff,
                                                    res.selfRef))

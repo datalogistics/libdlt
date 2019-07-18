@@ -102,24 +102,23 @@ class Session(object):
             
     @trace.debug("Session")
     def _viz_progress(self, sock, depot, size, offset, cb):
-        if self._viz:
-            try:
-                d = Depot(depot)
+        try:
+            d = Depot(depot)
+            if cb:
+                cb(d, sock[2], sock[3], size, offset)
+            if self._viz:
                 host = str(d.host)
                 if host in self.__static_ips:
                     host = self.__static_ips[host]
-                if cb:
-                    cb(d, sock[2], sock[3], size, offset)
                 msg = {"sessionId": sock[0],
                        "host":  host,
                        "length": size,
                        "offset": offset,
                        "timestamp": time.time()*1e3
-                   }
+                }
                 sock[1].emit(self.__WS_MTYPE['p'], msg)
-            except Exception as e:
-                pass
-    
+        except:
+            pass
 
     @trace.debug("Session")
     def _generate_jobs(self, step, size, copies):
