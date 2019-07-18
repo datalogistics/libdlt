@@ -10,7 +10,6 @@ from libdlt.util.common import print_progress
 SYS_PATH="/etc/periscope"
 USER_DEPOTS=os.path.join(SYS_PATH, "depots.conf")
 UNIS_URL = "http://unis.crest.iu.edu:8890"
-DEPOTS = {}
 XFER_TOTAL = 0
 
 def progress(depot, name, total, size, offset):
@@ -31,7 +30,7 @@ def main():
                         help='UNIS instance for uploading eXnode metadata')
     parser.add_argument('-b', '--bs', type=str, default='20m',
                         help='Block size')
-    parser.add_argument('-d', '--depot-file', type=str, default=USER_DEPOTS,
+    parser.add_argument('-d', '--depot-file', type=str, default=None,
                         help='Depots in a JSON dict used for upload')
     parser.add_argument('-o', '--output', type=str, default=None,
                         help='Output file')
@@ -43,6 +42,8 @@ def main():
                         help='Number of threads for operation')
     parser.add_argument('-r', '--recursive', action='store_true',
                         help='Recurse into subdirectories')
+    parser.add_argument('-c', '--cert', type=str, default=None,
+                        help='SSL Cert/Key for HTTPS endpoints')
 
     args = parser.parse_args()
     bs = args.bs
@@ -61,10 +62,15 @@ def main():
             f = open(df, "r")
             depots = json.loads(f.read())
         except Exception as e:
-            print ("ERROR: Could not read depot file: {}".format(e))
-            exit(1)
+            print ("{}, trying {}".format(e, USER_DEPOTS))
+            try:
+                f = open(USER_DEPOTS, "r")
+                depots = json.oads(f.read())
+            except:
+                print ("ERROR: No default depot file: {}".format(USER_DEPOTS))
+                exit(1)
 
-    sess = libdlt.Session([{"default": True, "url": args.host}],
+    sess = libdlt.Session([{"default": True, "url": args.host, "ssl": args.cert}],
                           bs=bs, depots=depots, threads=args.threads,
                           **{"viz_url": args.visualize})
     xfer = sess.upload if args.upload else sess.download
