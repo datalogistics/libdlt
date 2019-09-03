@@ -25,7 +25,7 @@ from libdlt.settings import DEPOT_TYPES, THREADS, COPIES, BLOCKSIZE, TIMEOUT
 from libdlt.result import UploadResult, DownloadResult, CopyResult
 from unis.models import Exnode, Service
 from unis.runtime import Runtime
-from unis.utils.async import make_async
+from unis.utils.asynchronous import make_async
 
 class Session(object):
     __WS_MTYPE = {

@@ -29,6 +29,7 @@ def main():
     remote, local, is_upload = (src, dst, False) if src.scheme else (dst, src, True)
     ty, host = ('U' if is_upload else 'D'), "{}://{}".format(remote.scheme, remote.netloc)
 
+    depots = None
     if args.depotfile:
         try:
             with open(args.depotfile) as f:
@@ -38,6 +39,7 @@ def main():
     
     name = None if local.path == '.' else local.path
     kwds = { 'bs': args.blocksize, 'threads': args.threads, 'viz_url': args.visualize, 'depots': depots }
+    if depots: kwds['depots'] = depots
     
     with libdlt.Session([{'default': True, 'url': host}], **kwds) as sess:
         res = (sess.upload if is_upload else sess.download)(urlunparse(src), filename=name)
