@@ -33,11 +33,15 @@ class BaseUploadSchedule(AbstractSchedule):
     def setSource(self, source):
         self._depots = source
         self._ls = cycle(source.keys())
+        self._copies = defaultdict(list)
 
     @trace.info("BaseUploadSchedule")
     def get(self, context={}):
         for depot in self._ls:
+            if depot in self._copies[context.get('offset', None)]:
+                continue
             if self._depots[depot].enabled:
+                self._copies[context.get('offset', '<none>')].append(depot)
                 return depot
 
 class BaseDownloadSchedule(AbstractSchedule):

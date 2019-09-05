@@ -184,6 +184,10 @@ class Session(object):
         ex.group = ex.owner
         ex.updated = ex.created
         sock = self._viz_register(ex.name, ex.size, len(self._depots))
+        if len(self._depots) < copies:
+            print("Cannot create {} replica, not enough stores [{}]".format(copies, len(self._depots)))
+            return
+        
         schedule.setSource(self._depots)
 
         time_s = time.time()

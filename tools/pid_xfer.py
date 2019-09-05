@@ -12,6 +12,7 @@ def main():
     parser.add_argument('-b', '--blocksize', type=str, default='20m', help='Block size for individual allocations')
     parser.add_argument('-V', '--visualize', type=str, help='URL to Web DLT server for data-movement visualization')
     parser.add_argument('-t', '--threads', type=int, default=5, help='Number of data transfer threads')
+    parser.add_argument('-r', '--replicas', type=int, default=1, help='Data replication factor')
     parser.add_argument('--verbose', action='store_true', help='Display verbose output')
     parser.add_argument('source', type=str, help='Transfer source.  For local files, this should be a '
                         'relative or absolute path.  For remote files, this should be a full URL to the file '
@@ -42,7 +43,9 @@ def main():
     if depots: kwds['depots'] = depots
     
     with libdlt.Session([{'default': True, 'url': host}], **kwds) as sess:
-        res = (sess.upload if is_upload else sess.download)(urlunparse(src), filename=name)
+        kwargs = {'filename': name}
+        if is_upload: kwargs['copies'] = args.replicas
+        res = (sess.upload if is_upload else sess.download)(urlunparse(src), **kwargs)
         records = sorted(filter(lambda x: x[0] == ty, sess.get_record()), key=lambda x: x[2])
 
         
