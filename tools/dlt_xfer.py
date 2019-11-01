@@ -67,7 +67,9 @@ def main():
     df = args.depot_file
 
     if args.debug in ['TRACE', 'DEBUG']:
+        import logging as plogging
         from lace import logging
+        plogging.basicConfig(format='%(color)s[%(asctime)-15s] [%(levelname)s] %(name)s%(reset)s %(message)s')
         log = logging.getLogger('libdlt')
         log.setLevel(logging.DEBUG)
         if args.debug == 'TRACE':
