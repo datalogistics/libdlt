@@ -12,6 +12,7 @@ def main():
     parser.add_argument('-b', '--blocksize', type=str, default='20m', help='Block size for individual allocations')
     parser.add_argument('-V', '--visualize', type=str, help='URL to Web DLT server for data-movement visualization')
     parser.add_argument('-t', '--threads', type=int, default=5, help='Number of data transfer threads')
+    parser.add_argument('-r', '--replicas', type=int, default=1, help='Data replication factor')
     parser.add_argument('--verbose', action='store_true', help='Display verbose output')
     parser.add_argument('source', type=str, help='Transfer source.  For local files, this should be a '
                         'relative or absolute path.  For remote files, this should be a full URL to the file '
@@ -29,6 +30,7 @@ def main():
     remote, local, is_upload = (src, dst, False) if src.scheme else (dst, src, True)
     ty, host = ('U' if is_upload else 'D'), "{}://{}".format(remote.scheme, remote.netloc)
 
+    depots = None
     if args.depotfile:
         try:
             with open(args.depotfile) as f:
@@ -38,9 +40,12 @@ def main():
     
     name = None if local.path == '.' else local.path
     kwds = { 'bs': args.blocksize, 'threads': args.threads, 'viz_url': args.visualize, 'depots': depots }
+    if depots: kwds['depots'] = depots
     
     with libdlt.Session([{'default': True, 'url': host}], **kwds) as sess:
-        res = (sess.upload if is_upload else sess.download)(urlunparse(src), filename=name)
+        kwargs = {'filename': name}
+        if is_upload: kwargs['copies'] = args.replicas
+        res = (sess.upload if is_upload else sess.download)(urlunparse(src), **kwargs)
         records = sorted(filter(lambda x: x[0] == ty, sess.get_record()), key=lambda x: x[2])
 
         

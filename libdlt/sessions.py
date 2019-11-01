@@ -25,7 +25,7 @@ from libdlt.settings import DEPOT_TYPES, THREADS, COPIES, BLOCKSIZE, TIMEOUT
 from libdlt.result import UploadResult, DownloadResult, CopyResult
 from unis.models import Exnode, Service
 from unis.runtime import Runtime
-from unis.utils.async import make_async
+from unis.utils.asynchronous import make_async
 
 class Session(object):
     __WS_MTYPE = {
@@ -102,24 +102,23 @@ class Session(object):
             
     @trace.debug("Session")
     def _viz_progress(self, sock, depot, size, offset, cb):
-        if self._viz:
-            try:
-                d = Depot(depot)
+        try:
+            d = Depot(depot)
+            if cb:
+                cb(d, sock[2], sock[3], size, offset)
+            if self._viz:
                 host = str(d.host)
                 if host in self.__static_ips:
                     host = self.__static_ips[host]
-                if cb:
-                    cb(d, sock[2], sock[3], size, offset)
                 msg = {"sessionId": sock[0],
                        "host":  host,
                        "length": size,
                        "offset": offset,
                        "timestamp": time.time()*1e3
-                   }
+                }
                 sock[1].emit(self.__WS_MTYPE['p'], msg)
-            except Exception as e:
-                pass
-    
+        except:
+            pass
 
     @trace.debug("Session")
     def _generate_jobs(self, step, size, copies):
@@ -185,6 +184,10 @@ class Session(object):
         ex.group = ex.owner
         ex.updated = ex.created
         sock = self._viz_register(ex.name, ex.size, len(self._depots))
+        if len(self._depots) < copies:
+            print("Cannot create {} replica, not enough stores [{}]".format(copies, len(self._depots)))
+            return
+        
         schedule.setSource(self._depots)
 
         time_s = time.time()
