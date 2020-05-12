@@ -212,9 +212,8 @@ class ProtocolService(object):
         
         try:
             alloc = allocation.IBPExtent()
-            alloc.mapping.read = result[0]
-            alloc.mapping.write = result[1]
-            alloc.mapping.manage = result[2]
+            for i, prop in enumerate(['read', 'write', 'manage']):
+                setattr(alloc.mapping, prop, result[i].replace("ibp://0.0.0.0", "ibp://" + depot.host))
             alloc.lifetime = { 'start': str(int(time.time() * 1000000)),
                                'end':  str(int((time.time() + duration) * 1000000)) }
             
