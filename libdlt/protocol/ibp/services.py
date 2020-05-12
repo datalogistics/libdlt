@@ -488,6 +488,7 @@ class ProtocolService(object):
             command = command.encode()
         
         try:
+            self._log.debug("{} --> {}".format(command, depot.host))
             sock.sendall(command)
             response = sock.recv(1024)
         except socket.timeout as e:
