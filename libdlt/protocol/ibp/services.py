@@ -80,7 +80,7 @@ class ProtocolService(object):
         
         try:
             tmpCommand = "{0} {1} {2} {3} {4}\n".format(flags.IBPv031, flags.IBP_STATUS, flags.IBP_ST_INQ, pwd, timeout)
-            result = self._dispatch_command(depot, tmpCommand)
+            result = self._dispatch_command(depot, tmpCommand, timeout)
             if not result:
                 return None
             result = result.split(" ")
@@ -145,7 +145,7 @@ class ProtocolService(object):
                                                                             reliability,
                                                                             timeout
                                                                             )
-            result = self._dispatch_command(alloc.depot, tmpCommand)
+            result = self._dispatch_command(alloc.depot, tmpCommand, timeout)
             if not result:
                 return None
             result = result.split(" ")
@@ -200,7 +200,7 @@ class ProtocolService(object):
         
         try:
             tmpCommand = "{0} {1} {2} {3} {4} {5} {6} \n".format(flags.IBPv031, flags.IBP_ALLOCATE, reliability, cap_type, duration, size, timeout)
-            result = self._dispatch_command(depot, tmpCommand)
+            result = self._dispatch_command(depot, tmpCommand, timeout)
             result = result.split(" ")[1:]
         except Exception as exp:
             self._log.warn("IBPProtocol.Allocate: Could not connect to {d} - {err}".format(err = exp, d = depot.endpoint))
@@ -337,16 +337,16 @@ class ProtocolService(object):
                                                                                                                                  offset  = offset,
                                                                                                                                  size    = size,
                                                                                                                                  timeout = timeout)
-            result = self._dispatch_command(source.depot, tmpCommand)
+            result = self._dispatch_command(source.depot, tmpCommand, timeout)
             if not result:
                 raise IBPError("No response to send command")
             result = result.split(" ")
         except Exception as exp:
-            self._log.warn("IBPProtocol.Send [{alloc}]: Could not connect to {host1}:{port1} - {e}".format(alloc = alloc.id, host1 = source.host, port1 = source.port, e = exp))
-            raise IBPError(exp)
+            self._log.warn("IBPProtocol.Send [{alloc}]: Could not connect to {host1} - {e}".format(alloc = destination.id, host1 = source.depot.endpoint, e = exp))
+            raise IBPError(exp) from exp
 
         if result[0].startswith("-"):
-            self._log.warn("IBPProtocol.Send [{alloc}]: Failed to move allocation - {err}".format(alloc = alloc.id, err = print_error(result[0])))
+            self._log.warn("IBPProtocol.Send [{alloc}]: Failed to move allocation - {err}".format(alloc = destination.id, err = print_error(result[0])))
             raise IBPError("Failed to move allocation - {}".format(print_error(result[0])))
         else:
             return duration
@@ -439,10 +439,10 @@ class ProtocolService(object):
 
 
     @trace.debug("IBP.ProtocolService")
-    def _dispatch_data(self, depot, command, data):
+    def _dispatch_data(self, depot, command, data, timeout=DEFAULT_TIMEOUT):
         port = int(depot.port)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(2*DEFAULT_TIMEOUT)
+        sock.settimeout(2*timeout)
         sock.connect((depot.host, port))
 
         if isinstance(command, str):
@@ -477,11 +477,11 @@ class ProtocolService(object):
         
 
     @trace.debug("IBP.ProtocolService")
-    def _dispatch_command(self, depot, command):
+    def _dispatch_command(self, depot, command, timeout=DEFAULT_TIMEOUT):
         # Create socket and configure with host and port
         port = int(depot.port)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(2*DEFAULT_TIMEOUT)
+        sock.settimeout(2*timeout)
         sock.connect((depot.host, port))
         
         if isinstance(command, str):
