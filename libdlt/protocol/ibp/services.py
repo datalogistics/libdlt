@@ -409,6 +409,7 @@ class ProtocolService(object):
             command = command.encode()
         
         try:
+            self._log.debug("{} <[{}]-- {}".format(command, size, depot.host))
             sock.sendall(command)
             buf = sock.recv(1024)
             nl = buf.index(b'\n') + 1            
@@ -449,6 +450,7 @@ class ProtocolService(object):
         if isinstance(data, str):
             data = data.encode()
         try:
+            self._log.debug("{} --[{}]> {}".format(command, len(data), depot.host))
             sock.sendall(command)
             response = sock.recv(1024)
             if not response.startswith(b'-'):
