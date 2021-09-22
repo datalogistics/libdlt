@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name = "libdlt",
-    version = "2.1.dev",
+    version = "2.2.dev",
     author = "DLT CREST Team",
     author_email = "dlt@crest.iu.edu",
     description = ("libdlt: DLT development modules and tools"),
