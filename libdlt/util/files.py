@@ -1,6 +1,5 @@
 import logging, threading, queue
 
-from idms.lib.assertions.exceptions import SatisfactionError
 from collections import defaultdict
 from libdlt.depot import Depot
 from libdlt.protocol import factory
@@ -79,7 +78,7 @@ class ExnodeInfo(object):
         result, todo = [], self._views[view].missing
         log.debug(f"Fill requirements - {todo}")
         if not todo:
-            raise SatisfactionError("No satisfying extents available to fill exnode")
+            raise ValueError("No satisfying extents available to fill exnode")
         else:
             for alloc in self._allocs:
                 if todo[0][0] >= todo[0][1]: todo.pop(0)
