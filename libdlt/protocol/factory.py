@@ -44,5 +44,9 @@ def buildAllocation(json):
     return SCHEMA_MAP[schema].buildAllocation(json)
 
 @trace.info("factory")
+def makeProxy(alloc):
+    return SCHEMA_MAP[getattr(alloc, "$schema", IBP_EXTENT_URI)].services.ProtocolService()
+
+@trace.info("factory")
 def makeAllocation(data, offset, depot, **kwds):
     return PROTOCOL_MAP[depot.scheme].makeAllocation(data, offset, depot, **kwds)
