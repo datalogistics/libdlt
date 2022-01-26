@@ -28,13 +28,13 @@ SCHEMA_MAP = {
 #    GOOGLE_EXTENT_URI: gdrive
 }
 
-@trace.info("factory")
+@trace.info("libdlt.factory")
 def buildAllocation(json):
     if type(json) is str:
         try:
             json = json.loads(json)
         except Exception as exp:
-            logging.getLogger().warn("{func:>20}| Could not decode allocation - {exp}".format(func = "buildAllocation", exp = exp))
+            logging.getLogger("libdlt").warn("{func:>20}| Could not decode allocation - {exp}".format(func = "buildAllocation", exp = exp))
             return False
 
     if isinstance(json, Extent):
@@ -43,10 +43,10 @@ def buildAllocation(json):
         schema = json["schema"]
     return SCHEMA_MAP[schema].buildAllocation(json)
 
-@trace.info("factory")
+@trace.info("libdlt.factory")
 def makeProxy(alloc):
     return SCHEMA_MAP[getattr(alloc, "$schema", IBP_EXTENT_URI)].services.ProtocolService()
 
-@trace.info("factory")
+@trace.info("libdlt.factory")
 def makeAllocation(data, offset, depot, **kwds):
     return PROTOCOL_MAP[depot.scheme].makeAllocation(data, offset, depot, **kwds)

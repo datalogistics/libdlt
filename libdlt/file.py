@@ -6,7 +6,7 @@ from lace import logging
 class FileError(OSError):
     pass
 
-log = logging.getLogger("dlt.file")
+log = logging.getLogger("libdlt.file")
 class DLTFile(object):
     def __init__(self, ex):
         self._ex, self._h = ex, 0

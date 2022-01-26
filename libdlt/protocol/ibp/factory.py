@@ -13,7 +13,7 @@ from lace.logging import trace
 from unis.models import Extent
 
 # construct adaptor from existing metadata
-@trace.info("IBP.factory")
+@trace.info("libdlt.IBP.factory")
 def buildAllocation(json):
     if type(json) is str:
         try:
@@ -35,7 +35,7 @@ def buildAllocation(json):
     return tmpAdapter
 
 # create a new object and metadata given data and depot target
-@trace.info("IBP.factory")
+@trace.info("libdlt.IBP.factory")
 def makeAllocation(data, offset, depot, **kwds):
     try:
         return IBPAdaptor(data=data, offset=offset, depot=depot, **kwds)
@@ -43,26 +43,26 @@ def makeAllocation(data, offset, depot, **kwds):
         raise AllocationError("Failed to generate allocation")
     
 class IBPAdaptor(object):
-    @trace.debug("IBPAdaptor")
+    @trace.debug("libdlt.IBPAdaptor")
     def __init__(self, alloc=None, data=None, offset=None, depot=None, **kwds):
-        self.log = logging.getLogger()
+        self.log = logging.getLogger("libdlt")
         self._service = services.ProtocolService()
-        
+
         if data:
             self._allocation = self._service.allocate(depot, offset, len(data), **kwds)
             self.write(data,**kwds)
         else:
             self._allocation = alloc
     
-    @trace.info("IBPAdaptor")
+    @trace.info("libdlt.IBPAdaptor")
     def getMetadata(self):
         return self._allocation
         
-    @trace.info("IBPAdaptor")
+    @trace.info("libdlt.IBPAdaptor")
     def read(self, **kwds):
         return self._service.load(self._allocation, **kwds)
         
-    @trace.info("IBPAdaptor")
+    @trace.info("libdlt.IBPAdaptor")
     def write(self, data, **kwds):
         try:
             self._service.store(self._allocation, data, len(data), **kwds)
@@ -71,7 +71,7 @@ class IBPAdaptor(object):
             traceback.print_exc()
             raise
         
-    @trace.info("IBPAdaptor")
+    @trace.info("libdlt.IBPAdaptor")
     def check(self, **kwds):
         depot_status = self._service.getStatus(self._allocation.depot)
         
@@ -89,7 +89,7 @@ class IBPAdaptor(object):
         
         return True
         
-    @trace.info("IBPAdaptor")
+    @trace.info("libdlt.IBPAdaptor")
     def copy(self, destination, src_kwargs, dst_kwargs, **kwds):
         host   = self._allocation.depot.host
         port   = self._allocation.depot.port
@@ -119,11 +119,11 @@ class IBPAdaptor(object):
         
         return dest_alloc
         
-    @trace.info("IBPAdaptor")
+    @trace.info("libdlt.IBPAdaptor")
     def move(self, destination, **kwds):
         return self.copy(destination, **kwds)
         
-    @trace.info("IBPAdaptor")
+    @trace.info("libdlt.IBPAdaptor")
     def release(self):
         details = self._service.probe(self._allocation)
         self._allocation.end = datetime.datetime.utcnow()
@@ -138,7 +138,7 @@ class IBPAdaptor(object):
         else:
             return False
 
-    @trace.info("IBPAdaptor")
+    @trace.info("libdlt.IBPAdaptor")
     def manage(self, **kwds):
         if not self._service.manage(self._allocation, **kwds):
             return False
