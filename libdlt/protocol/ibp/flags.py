@@ -117,7 +117,14 @@ error = {
     "-57": "IBP_E_INVALID_PRIVAE_KEY_FILE",
     "-58": "IBP_E_AUTHENTICATION_REQ",
     "-59": "IBP_E_AUTHEN_NOT_SUPPORT",
-    "-60": "IBP_E_AUTHENTICATION_FAILED"
+    "-60": "IBP_E_AUTHENTICATION_FAILED",
+    "-61": "IBP_E_INVALID_HOST",
+    "-62": "IBP_E_CANT_CONNECT",
+    "-63": "IBP_E_CHKSUM",
+    "-64": "IBP_E_CHKUM_TYPE",
+    "-65": "IBP_CHKSUM_BLOCKSIZE",
+    "-66": "IBP_CHKSUM_E_OUT_OF_SOCKETS",
+    "67": "IBP_MAX_ERROR"
     }
 
 
@@ -125,4 +132,4 @@ def print_error(key):
     if key in error:
         return error[key]
     else:
-        return "Unknown Error"
+        return f"Unknown Error [{key}]"

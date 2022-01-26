@@ -29,36 +29,42 @@ class ExnodeInfo(object):
 
         self._allocs, self._views = [], defaultdict(_view)
         allocs = sorted(ex.extents, key=lambda x: x.offset)
-        self._meta = self._validate() if remote_validate else defaultdict(lambda: True)
-        for e in self._allocs:
-            if self._meta[e]:
+        self._meta = self._validate(allocs) if remote_validate else defaultdict(lambda: True)
+        for e in allocs:
+            if self._meta[e.id]:
                 try:
                     self._views[e.location].fill(e.offset, e.size)
                     self._allocs.append(e)
-                    self._meta[e] = metadata
                 except AttributeError as exp: log.warn("Bad extent - {}".format(e.id))
 
     @property
     def views(self):
         return self._views.items()
 
-    def _validate(self):
+    def _validate(self, allocs):
+        results = {}
         def run(x):
             _proxy = factory.makeProxy(x)
             if not hasattr(x, 'depot'): x.depot = Depot(x.location)
-            try: return (x, _proxy.probe(x, timeout=0.025))
+            try:
+                v = _proxy.probe(x, timeout=0.025)
+                results[x.id] = v
             except Exception as e:
                 log.warn("Failed to connect with allocation - " + x.location)
-                return (x, False)
+                results[x.id] = False
 
         threads = []
-        for e in self._allocs:
-            t = threading.Thread(target=run, x=e)
+        for e in allocs:
+            if len(threads) > 15:
+                [t.join() for t in threads]
+                threads = []
+            t = threading.Thread(target=run, args=(e,))
             threads.append(t)
             t.daemon = True
             t.start()
-        return dict([t.join() for t in threads])
-    
+        [t.join() for t in threads]
+        return results
+
     def is_complete(self, view=None):
         if view: return view in self._views and self._views[view].is_complete
         else: return any([v.is_complete for v in self._views.values()])
@@ -90,12 +96,18 @@ class ExnodeInfo(object):
         return result
 
     def plan_download(self, start=0, end=None):
-        end = min(end or self._chunks[0][1], self._chunks[0][1])
+        size = max([v._size for v in self._views.values()])
+        end = min(end or size, size)
         for alloc in self._allocs:
             if alloc.offset <= start and alloc.offset + alloc.size > start:
                 yield alloc
                 start  = alloc.offset + alloc.size
             if start >= end: break
+
+    def alloc_in(self, offset):
+        for alloc in self._allocs:
+            if alloc.offset <= offset and alloc.offset + alloc.size > offset:
+                return alloc
 
     def __getitem__(self, e):
         return self._meta[e]
