@@ -9,6 +9,7 @@ from lace import logging
 from lace.logging import trace
 from libdlt.protocol.ibp.allocation import IBP_EXTENT_URI
 from libdlt.protocol.ceph.allocation import CEPH_EXTENT_URI
+from libdlt.depot import Depot
 #from libdlt.protocol.rdma.allocation import RDMA_EXTENT_URI
 #from libdlt.protocol.gdrive.allocation import GOOGLE_EXTENT_URI
 
@@ -45,6 +46,8 @@ def buildAllocation(json):
 
 @trace.info("libdlt.factory")
 def makeProxy(alloc):
+    if not hasattr(alloc, 'depot'):
+        alloc.depot = Depot(getattr(alloc, 'location', ''))
     return SCHEMA_MAP[getattr(alloc, "$schema", IBP_EXTENT_URI)].services.ProtocolService()
 
 @trace.info("libdlt.factory")
