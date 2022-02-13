@@ -14,6 +14,7 @@ from libdlt.depot import Depot
 #from libdlt.protocol.gdrive.allocation import GOOGLE_EXTENT_URI
 
 from unis.models import Extent
+from urllib.parse import urlparse
 
 PROTOCOL_MAP = {
     "ceph": ceph,
@@ -49,6 +50,11 @@ def makeProxy(alloc):
     if not hasattr(alloc, 'depot'):
         alloc.depot = Depot(getattr(alloc, 'location', ''))
     return SCHEMA_MAP[getattr(alloc, "$schema", IBP_EXTENT_URI)].services.ProtocolService()
+
+@trace.info("libdlt.factory")
+def makeProxyFromURI(uri):
+    uri = urlparse(uri)
+    return PROTOCOL_MAP[uri.scheme].services.ProtocolService()
 
 @trace.info("libdlt.factory")
 def makeAllocation(data, offset, depot, **kwds):
