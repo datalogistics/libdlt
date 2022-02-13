@@ -462,7 +462,7 @@ class ProtocolService(object):
             self._log.warn("Socket Timeout - {0}".format(e))
             self._log.warn("--Attempted to execute: {0}".format(command))
             #traceback.print_exc()
-            return None
+            raise
         except Exception as e:
             self._log.warn("Socket error - {0}".format(e))
             self._log.warn("--Attempted to execute: {0}".format(command))
@@ -496,7 +496,7 @@ class ProtocolService(object):
             self._log.warn("Socket Timeout - {0}".format(e))
             self._log.warn("--Attempted to execute: {0}".format(command))
             #traceback.print_exc()
-            return None
+            raise
         except UnicodeDecodeError as e:
             self._log.warn("Bad Unicode response - {}".format(e))
             self._log.warn("--Attempted to execute:{}".format(command))

@@ -1,4 +1,4 @@
-import logging, threading, queue
+import logging, threading, queue, socket
 
 from collections import defaultdict
 from libdlt.depot import Depot
@@ -6,7 +6,7 @@ from libdlt.protocol import factory
 
 log = logging.getLogger('libdlt.utils')
 class ExnodeInfo(object):
-    def __init__(self, ex, remote_validate=False, threadcount=1):
+    def __init__(self, ex, remote_validate=False, accept_timeout=True, threadcount=1):
         class _view(object):
             def __init__(self): self._size, self._chunks = ex.size, [[0,0]]
             def fill(self, o, s):
@@ -29,6 +29,7 @@ class ExnodeInfo(object):
 
         self._allocs, self._views = [], defaultdict(_view)
         self._tc = threadcount
+        self._timeout_ok = accept_timeout
         allocs = sorted(ex.extents, key=lambda x: x.offset)
         self._meta = self._validate(allocs) if remote_validate else defaultdict(lambda: True)
         for e in allocs:
@@ -50,6 +51,8 @@ class ExnodeInfo(object):
             try:
                 v = _proxy.probe(x, timeout=0.025)
                 results[x.id] = v
+            except socket.timeout as e:
+                result[x.id] = self._timeout_ok
             except Exception as e:
                 log.warn("Failed to connect with allocation - " + x.location)
                 results[x.id] = False
