@@ -132,27 +132,22 @@ class ProtocolService(object):
         if "mode" in kwargs:
             mode = kwargs["mode"]
             
-        try:
-            cap = Capability(alloc.mapping.manage)
-            tmpCommand = "{0} {1} {2} {3} {4} {5} {6} {7} {8} {9}\n".format(flags.IBPv031,
-                                                                            flags.IBP_MANAGE,
-                                                                            cap.key,
-                                                                            cap.code,
-                                                                            mode,
-                                                                            cap_type,
-                                                                            max_size,
-                                                                            duration,
-                                                                            reliability,
-                                                                            timeout
-                                                                            )
-            result = self._dispatch_command(alloc.depot, tmpCommand, timeout)
-            if not result:
-                return None
-            result = result.split(" ")
-        except Exception as exp:
-            self._log.warn("IBPProtocol.Manage [{alloc}]: Could not connect to {host}:{port} - {err}".format(alloc = alloc.id, err = exp, host = alloc.host, port = alloc.port))
+        cap = Capability(alloc.mapping.manage)
+        tmpCommand = "{0} {1} {2} {3} {4} {5} {6} {7} {8} {9}\n".format(flags.IBPv031,
+                                                                        flags.IBP_MANAGE,
+                                                                        cap.key,
+                                                                        cap.code,
+                                                                        mode,
+                                                                        cap_type,
+                                                                        max_size,
+                                                                        duration,
+                                                                        reliability,
+                                                                        timeout
+        )
+        result = self._dispatch_command(alloc.depot, tmpCommand, timeout)
+        if not result:
             return None
-
+        result = result.split(" ")
         if result[0].startswith("-"):
             self._log.warn("IBPProtocol.Manage [{alloc}]: Failed to manage allocation - {err}".format(alloc = alloc.id, err = print_error(result[0])))
             return None
