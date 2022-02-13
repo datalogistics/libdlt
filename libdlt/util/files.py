@@ -52,7 +52,7 @@ class ExnodeInfo(object):
                 v = _proxy.probe(x, timeout=0.025)
                 results[x.id] = v
             except socket.timeout as e:
-                result[x.id] = self._timeout_ok
+                results[x.id] = self._timeout_ok
             except Exception as e:
                 log.warn("Failed to connect with allocation - " + x.location)
                 results[x.id] = False
