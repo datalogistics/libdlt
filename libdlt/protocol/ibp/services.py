@@ -377,7 +377,7 @@ class ProtocolService(object):
                                                                                                 length  = alloc.size,
                                                                                                 timeout = timeout)
         try:
-            result = self._receive_data(depot, tmpCommand, alloc.size)
+            result = self._receive_data(depot, tmpCommand, alloc.size, timeout=timeout)
         except:
             #traceback.print_exc()
             raise IBPError("Failed to download data")
@@ -393,11 +393,11 @@ class ProtocolService(object):
 
 
     @trace.debug("IBP.ProtocolService")
-    def _receive_data(self, depot, command, size):
+    def _receive_data(self, depot, command, size, timeout=DEFAULT_TIMEOUT):
         rsize = 0
         port = int(depot.port)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(2*DEFAULT_TIMEOUT)
+        sock.settimeout(2*timeout)
         sock.connect((depot.host, port))
         
         if isinstance(command, str):
