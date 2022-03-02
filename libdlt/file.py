@@ -56,7 +56,7 @@ class DLTFile(object):
             for _ in range(4):
                 try: return self._proxy.store(alloc, d, len(d), timeout=0.1)
                 except (socket.timeout, exceptions.AllocationError) as e: time.sleep(0.1)
-            raise OSError("Unable to stage allocation {self._offset}-{self._offset+len(d)}")
+            raise OSError(f"Unable to stage allocation {self._offset}-{self._offset+len(d)}")
 
         wrote = 0
         while len(data) > 0:
