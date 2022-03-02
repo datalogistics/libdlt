@@ -49,7 +49,7 @@ class ExnodeInfo(object):
             _proxy = factory.makeProxy(x)
             if not hasattr(x, 'depot'): x.depot = Depot(x.location)
             try:
-                v = _proxy.probe(x, timeout=0.025)
+                v = _proxy.probe(x, timeout=0.5)
                 results[x.id] = v
             except socket.timeout as e:
                 results[x.id] = self._timeout_ok

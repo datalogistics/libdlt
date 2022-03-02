@@ -10,20 +10,16 @@ to the IBP protocol
 
 '''
 
-import time
-import argparse
-import socket
-
-import traceback
-
-from lace import logging
+import time, socket
 
 from libdlt.protocol.ibp.settings import DEFAULT_PASSWORD, DEFAULT_TIMEOUT, DEFAULT_DURATION, DEFAULT_MAXSIZE
 from lace import logging
 from lace.logging import trace
+from libdlt.protocol.exceptions import AllocationError
 from libdlt.protocol.ibp import flags, allocation
 from libdlt.protocol.ibp.flags import print_error
 from libdlt.protocol.ibp.exceptions import IBPError
+from libdlt.depot import Depot
 
 class Capability(object):
     def __init__(self, cap_string):
@@ -47,469 +43,188 @@ class Capability(object):
 class ProtocolService(object):
     @trace.debug("IBP.ProtocolService")
     def __init__(self):
-        self._log = logging.getLogger('libdlt')
+        self._log = logging.getLogger('libdlt.ibp')
 
     
-    '''
-    @input: depot - A Depot object
-    @optional:
-            password - the password to access the depot
-            timeout  - the length of time in seconds to wait for a response
-    @output:
-           Dict:
-             total - the total space on the depot
-             used  - the amount of data stored on the depot
-             volatile - the amount of data that can be removed if space is required
-             non-volatile - the amount of data that cannot be removed
-             max-duration - the maximum time in seconds data can be hosted on the depot without refreshing
-    '''
     @trace.info("IBP.ProtocolService")
     def getStatus(self, depot, **kwargs):
-    # Query the status of a Depot.
-    
-    # Generate request with the following form
-    # IBPv031[0] IBP_ST_INQ[2] pwd timeout
-        pwd = DEFAULT_PASSWORD
-        timeout = DEFAULT_TIMEOUT
-        tmpCommand = ""
-        
-        if "password" in kwargs:
-            pwd = kwargs["password"]
-        if "timeout" in kwargs:
-            timeout = kwargs["timeout"]
-        
+        timeout = kwargs.get('timeout', DEFAULT_TIMEOUT)
+
+        # Query the status of a Depot.
+        # IBPv031[0] IBP_ST_INQ[2] pwd timeout
+        c = f"{flags.IBPv031} {flags.IBP_STATUS} {flags.IBP_ST_INQ} " \
+            f"{kwargs.get('password', DEFAULT_PASSWORD)} {timeout} \n"
         try:
-            tmpCommand = "{0} {1} {2} {3} {4}\n".format(flags.IBPv031, flags.IBP_STATUS, flags.IBP_ST_INQ, pwd, timeout)
-            result = self._dispatch_command(depot, tmpCommand, timeout)
-            if not result:
-                return None
-            result = result.split(" ")
-        except Exception as exp:
-            self._log.warn("IBPProtocol.getStatus: Failed to get the status of {host}:{port} - {err}".format(err = exp, host=depot.host, port=depot.port))
-            return None
-            
-        return dict(zip(["total", "used", "volatile", "used-volatile", "max-duration"], result))
+            return dict(zip(["total", "used", "volatile", "used-volatile", "max-duration"],
+                            self._dispatch_command(depot, c, timeout).split(" ")))
+        except Exception as e:
+            self._log.warn(f"getStatus - Failed @ {depot.host}:{depot.port} - {e}")
+            raise
 
-
-
-
-    '''
-    @input: alloc - an Allocation containing metadata about the allocation
-    @optional:
-           reliability - One of either IBP_HARD or IBP_SOFT, when hard, allocations will not expire unless
-                         explicitly removed, when soft, allocations will expire after duration.
-           type        - One of BYTEARRAY, BUFFER, FIFO, CIRQ.
-           duration    - The amount of time, in seconds, that the allocation is reserved.
-           timeout     - The amount of time the connection will wait for a response.
-           max_size    - Changes the maximum size of the data stored by the allocation
-           cap_type    - The capability modified by the action
-           mode        - Defines the type of manage call.
-    @output:
-           The response from the depot (varies by manage mode)
-    '''
     @trace.info("IBP.ProtocolService")
     def manage(self, alloc, **kwargs):
-        cap_type    = 0
-        reliability = flags.IBP_HARD
-        timeout     = DEFAULT_TIMEOUT
-        max_size    = DEFAULT_MAXSIZE
-        duration    = DEFAULT_DURATION
-        tmpCommand  = ""
-        mode        = flags.IBP_CHANGE
+        timeout = kwargs.get('timeout', DEFAULT_TIMEOUT)
+        try:
+            cap, depot = Capability(alloc.mapping.manage), Depot(alloc.location)
+        except AttributeError:
+            raise AllocationError("Incomplete allocation")
 
-    # Generate manage request with the following form
-    # IBPv031[0] IBP_MANAGE[9] manage_key "MANAGE" IBP_CHANGE[43] cap_type max_size duration reliability timeout
-        if "cap_type" in kwargs:
-            cap_type = kwargs["cap_type"]
-        if "reliability" in kwargs:
-            reliability = kwargs["reliability"]
-        if "timeout" in kwargs:
-            timeout = kwargs["timeout"]
-        if "max_size" in kwargs:
-            max_size = kwargs["max_size"]
-        if "duration" in kwargs:
-            duration = kwargs["duration"]
-        if "mode" in kwargs:
-            mode = kwargs["mode"]
-            
-        cap = Capability(alloc.mapping.manage)
-        tmpCommand = "{0} {1} {2} {3} {4} {5} {6} {7} {8} {9}\n".format(flags.IBPv031,
-                                                                        flags.IBP_MANAGE,
-                                                                        cap.key,
-                                                                        cap.code,
-                                                                        mode,
-                                                                        cap_type,
-                                                                        max_size,
-                                                                        duration,
-                                                                        reliability,
-                                                                        timeout
-        )
-        result = self._dispatch_command(alloc.depot, tmpCommand, timeout)
-        if not result:
-            return None
-        result = result.split(" ")
-        if result[0].startswith("-"):
-            self._log.warn("IBPProtocol.Manage [{alloc}]: Failed to manage allocation - {err}".format(alloc = alloc.id, err = print_error(result[0])))
-            return None
-        else:
-            return result
+        # Generate manage request with the following form
+        # IBPv031[0] IBP_MANAGE[9] manage_key "MANAGE" IBP_CHANGE[43] cap_type max_size duration reliability timeout
+        c = f"{flags.IBPv031} {flags.IBP_MANAGE} {cap.key} {cap.code} " \
+            f"{kwargs.get('mode', flags.IBP_CHANGE)} {kwargs.get('cap_type', 0)} " \
+            f"{kwargs.get('max_size', DEFAULT_MAXSIZE)} " \
+            f"{kwargs.get('duration', DEFAULT_DURATION)} " \
+            f"{kwargs.get('reliability', flags.IBP_HARD)} {timeout} \n"
+        try:
+            return self._dispatch_command(depot, c, timeout).split(" ")
+        except Exception as e:
+            self._log.warn(f"manage: [{alloc.id}] - Failed @ {depot.host}:{depot.port} - {e}")
+            raise
 
-
-
-    '''
-    See Manage, Probe is a decorator for manage.
-    '''
     @trace.info("IBP.ProtocolService")
     def probe(self, alloc, **kwargs):
-        results = self.manage(alloc, mode = flags.IBP_PROBE, **kwargs)
-        if not results:
-            return None
-        
-        result = dict(zip(["read_count", "write_count", "size", "max_size", "duration", "reliability", "type"], results[1:]))
-        return result
-    
- 
+        return dict(zip(["read_count","write_count","size","max_size",
+                         "duration","reliability","type"],
+                        self.manage(alloc, mode = flags.IBP_PROBE, **kwargs)[1:]))
 
-   
-    '''
-    @input: 
-           depot - A Depot object
-           size  - The size of the desired allocation
-    @optional:
-           reliability - One of either IBP_HARD or IBP_SOFT, when hard, allocations will not expire unless
-                         explicitly removed, when soft, allocations will expire after duration.
-           type        - One of BYTEARRAY, BUFFER, FIFO, CIRQ.
-           duration    - The amount of time, in seconds, that the allocation is reserved.
-           timeout     - The amount of time the connection will wait for a response.
-    @output:
-           An Allocation object
-    '''
     @trace.info("IBP.ProtocolService")
     def allocate(self, depot, offset, size, **kwargs):
+        timeout = kwargs.get('timeout', DEFAULT_TIMEOUT)
+        duration = kwargs.get('duration', DEFAULT_DURATION)
+        
         # Generate destination Allocation and Capabilities using the form below
         # IBPv031[0] IBP_ALLOCATE[1] reliability cap_type duration size timeout
-        reliability = kwargs.get('reliability', None) or flags.IBP_HARD
-        cap_type    = kwargs.get('type', None) or flags.IBP_BYTEARRAY
-        timeout     = kwargs.get('timeout', None) or DEFAULT_TIMEOUT
-        duration    = kwargs.get('duration', None) or DEFAULT_DURATION
-        
+        c = f"{flags.IBPv031} {flags.IBP_ALLOCATE} " \
+            f"{kwargs.get('reliability', flags.IBP_HARD)} " \
+            f"{kwargs.get('cap_type', flags.IBP_BYTEARRAY)} {duration} {size} {timeout} \n"
         try:
-            tmpCommand = "{0} {1} {2} {3} {4} {5} {6} \n".format(flags.IBPv031, flags.IBP_ALLOCATE, reliability, cap_type, duration, size, timeout)
-            result = self._dispatch_command(depot, tmpCommand, timeout)
-            result = result.split(" ")[1:]
-        except Exception as exp:
-            self._log.warn("IBPProtocol.Allocate: Could not connect to {d} - {err}".format(err = exp, d = depot.endpoint))
-            raise IBPError("Failed to allocate ibp resource")
-        
-        if result[0].startswith("-"):
-            self._log.warn("IBPProtocol.Allocate: Failed to allocate resource - {err}".format(err = print_error(result[0])))
-            raise IBPError("Error from server", response=print_error(result[0]))
-        
+            r = self._dispatch_command(depot, c, timeout).split(" ")[1:]
+        except Exception as e:
+            self._log.warn(f"allocate: Failed @ {depot.host}:{depot.port} - {e}")
+            raise
+
         try:
             alloc = allocation.IBPExtent()
-            for i, prop in enumerate(['read', 'write', 'manage']):
-                setattr(alloc.mapping, prop, result[i].replace("ibp://0.0.0.0", "ibp://" + depot.host))
+            alloc.mapping = dict(zip(["read", "write", "manage"],
+                                     [v.replace("0.0.0.0", str(depot.host)) for v in r]))
             alloc.lifetime = { 'start': str(int(time.time() * 1000000)),
                                'end':  str(int((time.time() + duration) * 1000000)) }
-            
-            alloc.depot = depot
             alloc.location = depot.endpoint
-            alloc.offset = offset
-            alloc.size = size
-            alloc.alloc_offset = offset
-            alloc.alloc_length = size
+            alloc.offset = alloc.alloc_offset = offset
+            alloc.size = alloc.alloc_length = size
         except:
             raise
         return alloc
     
-    # Below are several shorthand versions of Allocate for hard and soft allocations of various types.
-    def allocateSoftByteArray(self, depot, size, **kwargs):
-        return self.allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_BYTEARRAY, **kwargs)
-
-    def allocateHardByteArray(self, depot, size, **kwargs):
-        return self.allocate(depot, size, reliability = flags.IBP_HARD, type = flags.IBP_BYTEARRAY, **kwargs)
-
-    def allocateSoftBuffer(self, depot, size, **kwargs):
-        return self.allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_BUFFER, **kwargs)
-    
-    def allocateHardBuffer(self, depot, size, **kwargs):
-        return self.allocate(depot, size, reliability = flags.IBP_HARD, type = flags.IBP_BUFFER, **kwargs)
-
-    def allocateSoftFifo(self, depot, size, **kwargs):
-        return self.allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_FIFO, **kwargs)
-
-    def allocateHardFifo(self, depot, size, **kwargs):
-        return self.allocate(depot, size, reliability = flags.IBP_HARD, type = flags.IBO_FIFO, **kwargs)
-
-    def allocateSoftCirq(self, depot, size, **kwargs):
-        return self.allocate(depot, size, reliability = flags.IBP_SOFT, type = flags.IBP_CIRQ, **kwargs)
-
-    def allocateHardCirq(self, depot, size, **kwargs):
-        return self.allocate(depot, size, reliability = flags.IBP_HARD, typ = flags.IBP_CIRQ, **kwargs)
-
-
-
-    '''
-    @input: 
-           alloc - An Allocation object describing the allocation
-           data  - The bytes to be stored
-           size  - The size of the data
-    @optional:
-           duration    - The amount of time, in seconds, that the allocation is reserved.
-           timeout     - The amount of time the connection will wait for a response.
-    @output:
-           The duration of the allocation
-    '''
     @trace.info("IBP.ProtocolService")
     def store(self, alloc, data, size, **kwargs):
-        assert alloc.depot
-        depot = alloc.depot
-        timeout  = DEFAULT_TIMEOUT
-        duration = DEFAULT_DURATION
-        
-        if "timeout" in kwargs:
-            timeout = kwargs["timeout"]
-        if "duration" in kwargs:
-            duration = kwargs["duration"]
-        
-        cap = Capability(alloc.mapping.write)
-        
+        timeout = kwargs.get('timeout', DEFAULT_TIMEOUT)
         try:
-            tmpCommand = "{0} {1} {2} {3} {4} {5}\n".format(flags.IBPv031, flags.IBP_STORE, cap.key, cap.wrmKey, size, timeout)
-            result = self._dispatch_data(depot, tmpCommand, data)
-            if not result:
-                return None
-            result = result.split(" ")
-        except Exception as exp:
-            self._log.warn("IBPProtocol.Store [{alloc}]: Could not connect to {depot} - {err}".format(alloc = alloc.id, err = exp, depot=depot))
-            return None
-            
-        if result[0].startswith("-"):
-            self._log.warn("IBPProtocol.Store [{alloc}]: Failed to store resource - {err}".format(alloc = alloc.id, err = print_error(result[0])))
-            return None
+            cap, depot = Capability(alloc.mapping.write), Depot(alloc.location)
+        except AttributeError:
+            raise AllocationError("Incomplete allocation")
+        # IBPv031[0] IBP_STORE[2] write_key WRMKey size timeout
+        c = f"{flags.IBPv031} {flags.IBP_STORE} {cap.key} {cap.wrmKey} {size} {timeout} \n"
+        try:
+            return self._dispatch_data(depot, c, data).split(" ")
+        except Exception as e:
+            self._log.warn(f"store: Failed @ {depot.host}:{depot.port} - {e}")
+            raise
 
-        return duration
-
-
-    '''
-    @input: 
-           source      - An Allocation object describing the source allocation
-           destination - An Allocation object describing the destination allocation
-    @optional:
-           duration    - The amount of time, in seconds, that the allocation is reserved.
-           timeout     - The amount of time the connection will wait for a response.
-           offset      - The data offset.
-    @output:
-           The duration of the allocation
-    '''
     @trace.info("IBP.ProtocolService")
     def send(self, source, destination, **kwargs):
-    # Move an allocation from one {source} Depot to one {destination} depot
-        timeout     = DEFAULT_TIMEOUT
-        duration    = DEFAULT_DURATION
-        offset      = 0
-        
-        if "timeout" in kwargs:
-            timeout = kwargs["timeout"]
-        if "duration" in kwargs:
-            duration = kwargs["duration"]
-        if "offset" in kwargs:
-            offset = kwars["offset"]
+        timeout = kwargs.get('timeout', DEFAULT_TIMEOUT)
         size = kwargs.get("size", source.size)
-
-        src_cap  = Capability(source.mapping.read)
-        dest_cap = Capability(destination.mapping.write)
-        
-    # Generate move request with the following form
-    # IBPv040[1] IBP_SEND[5] src_read_key src_WRMKey dest_write_cap offset size timeout timeout timeout
         try:
-            tmpCommand = "{version} {command} {source} {dest} {keytype} {offset} {size} {timeout} {timeout} {timeout} \n".format(version = flags.IBPv040,
-                                                                                                                                 command = flags.IBP_SEND,
-                                                                                                                                 source  = src_cap.key,
-                                                                                                                                 dest    = str(dest_cap),
-                                                                                                                                 keytype = src_cap.wrmKey,
-                                                                                                                                 offset  = offset,
-                                                                                                                                 size    = size,
-                                                                                                                                 timeout = timeout)
-            result = self._dispatch_command(source.depot, tmpCommand, timeout)
-            if not result:
-                raise IBPError("No response to send command")
-            result = result.split(" ")
-        except Exception as exp:
-            self._log.warn("IBPProtocol.Send [{alloc}]: Could not connect to {host1} - {e}".format(alloc = destination.id, host1 = source.depot.endpoint, e = exp))
-            raise IBPError(exp) from exp
+            s_cap,s_depot = Capability(source.mapping.read), Depot(source.location)
+            d_cap,d_depot = Capability(destination.mapping.write), Depot(destination.location)
+        except AttributeError:
+            raise AllocationError("Incomplete allocation")
+        # IBPv040[1] IBP_SEND[5] src_read_key src_WRMKey dest_write_cap offset size timeout timeout timeout
+        c = f"{flags.IBPv040} {flags.IBP_SEND} {s_cap.key} {s_cap.wrmKey} {str(d_cap)} " \
+            f"{kwargs.get('offset', 0)} {size} {kwargs.get('timeout', DEFAULT_TIMEOUT)} " \
+            f"{kwargs.get('timeout', DEFAULT_TIMEOUT)} " \
+            f"{kwargs.get('timeout', DEFAULT_TIMEOUT)}\n"
 
-        if result[0].startswith("-"):
-            self._log.warn("IBPProtocol.Send [{alloc}]: Failed to move allocation - {err}".format(alloc = destination.id, err = print_error(result[0])))
-            raise IBPError("Failed to move allocation - {}".format(print_error(result[0])))
-        else:
-            return duration
-        
+    # Generate move request with the following form
+        try:
+            return self._dispatch_command(s_depot, c, timeout).split(" ")
+        except Exception as e:
+            self._log.warn("send: Failed @ {s_depot.host}:{s_depot.port} - {e}")
+            raise
 
-
-    '''
-    @input: 
-           alloc - An Allocation object describing the allocation
-    @optional:
-           timeout     - The amount of time the connection will wait for a response.
-    @output:
-           The data stored in the allocation
-    '''
     @trace.info("IBP.ProtocolService")
     def load(self, alloc, **kwargs):
-        assert alloc.depot
-        depot = alloc.depot
-        timeout = DEFAULT_TIMEOUT
-        offset = 0
-        
-        if "timeout" in kwargs:
-            timeout = kwargs["timeout"]
-        if "offset" in kwargs:
-            offset = kwargs["offset"]
-            
-        cap = Capability(alloc.mapping.read)
-        
-        tmpCommand = "{version} {command} {key} {wrmkey} {offset} {length} {timeout} \n".format(version = flags.IBPv031, 
-                                                                                                command = flags.IBP_LOAD, 
-                                                                                                key     = cap.key, 
-                                                                                                wrmkey  = cap.wrmKey,
-                                                                                                offset  = offset,
-                                                                                                length  = alloc.size,
-                                                                                                timeout = timeout)
+        timeout = kwargs.get('timeout', DEFAULT_TIMEOUT)
         try:
-            result = self._receive_data(depot, tmpCommand, alloc.size, timeout=timeout)
-        except:
-            #traceback.print_exc()
-            raise IBPError("Failed to download data")
-        if not result:
-            raise IBPError("Failed to download data")
-            
-        if result["headers"].startswith("-"):
-            self._log.warn("IBPProtocol.Load [{alloc}]: Failed to store resource - {err}".format(alloc = alloc.id, err = print_error(result["headers"])))
-            #traceback.print_exc()
-            raise IBPError("Error response from server", response=print_error(result["headers"]))
-        else:
-            return result["data"]
-
+            cap, depot = Capability(alloc.mapping.read), Depot(alloc.location)
+        except AttributeError:
+            raise AllocationError("Incomplete allocation")
+        c = f"{flags.IBPv031} {flags.IBP_LOAD} {cap.key} {cap.wrmKey} " \
+            f"{kwargs.get('offset', 0)} {alloc.size} " \
+            f"{kwargs.get('timeout', DEFAULT_TIMEOUT)} \n"
+        try:
+            return self._receive_data(depot, c, alloc.size, timeout=timeout)["data"]
+        except Exception as e:
+            self._log.warn(f"load: Failed @ {depot.host}:{depot.port} - {e}")
+            raise
 
     @trace.debug("IBP.ProtocolService")
     def _receive_data(self, depot, command, size, timeout=DEFAULT_TIMEOUT):
-        rsize = 0
-        port = int(depot.port)
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(2*timeout)
-        sock.connect((depot.host, port))
-        
-        if isinstance(command, str):
-            command = command.encode()
-        
-        try:
-            self._log.debug("{} <[{}]-- {}".format(command, size, depot.host))
-            sock.sendall(command)
-            buf = sock.recv(1024)
-            nl = buf.index(b'\n') + 1            
-            hdr = buf[:nl]
-            if nl:
-                data = buf[nl:]
-            else:
-                data = b''
-            recv = len(data)
-            while recv < size:
-                rsize = size - recv
-                r = sock.recv(rsize)
-                data += r
-                recv += len(r)
-        except socket.timeout as e:
-            self._log.warn("Data Socket Timeout - {0} {1}".format(e, rsize))
-            self._log.warn("--Attempted to execute: {0}".format(command))
-            raise
-        except Exception as e:
-            self._log.warn("Data Socket error - {0}".format(e))
-            self._log.warn("--Attempted to execute: {0}".format(command))
-            raise
-        finally:
-            sock.close()
+        if isinstance(command, str): command = command.encode()
+
+        self._log.debug(f"IBP receive [{depot.host}]: {command}")
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(2*timeout)
+            s.connect((str(depot.host), depot.port))
+            s.sendall(command)
+            buf = s.recv(1024)
+            try:
+                line = buf.index(b'\n') + 1
+                hdr, data = buf[:line], buf[line:]
+            except ValueError: data = b''
+            if hdr.startswith(b'-'):
+                if isisntance(hdr, bytes): hdr = hdr.decode()
+                raise IBPError(print_error(r.split(" ")[0]))
+            while len(data) < size:
+                data += sock.recv(size - len(data))
 
         return { "headers": hdr.decode(), "data": data }
 
-
     @trace.debug("IBP.ProtocolService")
     def _dispatch_data(self, depot, command, data, timeout=DEFAULT_TIMEOUT):
-        port = int(depot.port)
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(2*timeout)
-        sock.connect((depot.host, port))
+        if isinstance(command, str): command = command.encode()
+        if isinstance(data, str): data = data.encode()
 
-        if isinstance(command, str):
-            command = command.encode()
-        if isinstance(data, str):
-            data = data.encode()
-        try:
-            self._log.debug("{} --[{}]> {}".format(command, len(data), depot.host))
-            sock.sendall(command)
-            response = sock.recv(1024)
-            if not response.startswith(b'-'):
-                sock.sendall(data)
-                response = sock.recv(1024)
-            else:
-                self._log.warn("Bad response from IBP server: {0}".format(response))
-        except socket.timeout as e:
-            self._log.warn("Socket Timeout - {0}".format(e))
-            self._log.warn("--Attempted to execute: {0}".format(command))
-            #traceback.print_exc()
-            raise
-        except Exception as e:
-            self._log.warn("Socket error - {0}".format(e))
-            self._log.warn("--Attempted to execute: {0}".format(command))
-            #traceback.print_exc()
-            return None
-        finally:
-            sock.close()
-        
-        if isinstance(response, bytes):
-            response = response.decode()
-            
-        return response
-        
+        self._log.debug(f"IBP send [{depot.host}]: {command} | size: {len(data)}")
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(2*timeout)
+            s.connect((str(depot.host), depot.port))
+            s.sendall(command)
+            r = s.recv(1024)
+            if r.startswith(b'-'):
+                if isinstance(r, bytes): r = r.decode()
+                raise IBPError(print_error(r.split(" ")[0]))
+            s.sendall(data)
+            r = s.recv(1024)
+        if isinstance(r, bytes): r = r.decode()
+        return r
 
     @trace.debug("IBP.ProtocolService")
     def _dispatch_command(self, depot, command, timeout=DEFAULT_TIMEOUT):
-        # Create socket and configure with host and port
-        port = int(depot.port)
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(2*timeout)
-        sock.connect((depot.host, port))
-        
-        if isinstance(command, str):
-            command = command.encode()
-        
-        try:
-            self._log.debug("{} --> {}".format(command, depot.host))
-            sock.sendall(command)
-            response = sock.recv(1024)
-        except socket.timeout as e:
-            self._log.warn("Socket Timeout - {0}".format(e))
-            self._log.warn("--Attempted to execute: {0}".format(command))
-            #traceback.print_exc()
-            raise
-        except UnicodeDecodeError as e:
-            self._log.warn("Bad Unicode response - {}".format(e))
-            self._log.warn("--Attempted to execute:{}".format(command))
-            #traceback.print_exc()
-            return None
-        except Exception as e:
-            self._log.warn("Socket error - {0}".format(e))
-            self._log.warn("--Attempted to execute: {0}".format(command))
-            #traceback.print_exc()
-            return None
-        finally:
-            sock.close()
-        
-        if isinstance(response, bytes):
-            response = response.decode()
-            
-        return response
+        if isinstance(command, str): command = command.encode()
 
+        self._log.debug(f"IBP command [{depot.host}]: {command}")
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(2*timeout)
+            s.connect((str(depot.host), int(depot.port)))
+            s.sendall(command)
+            r = s.recv(1024)
+            if isinstance(r, bytes): r = r.decode()
+
+        if r.startswith("-"): raise IBPError(print_error(r.split(" ")[0]))
+        return r
 
 def UnitTests(): 
     from libdlt.depot import Depot
