@@ -55,6 +55,7 @@ class ProtocolService(object):
         c = f"{flags.IBPv031} {flags.IBP_STATUS} {flags.IBP_ST_INQ} " \
             f"{kwargs.get('password', DEFAULT_PASSWORD)} {timeout} \n"
         try:
+            timeout = kwargs.get('timeout', None)
             return dict(zip(["total", "used", "volatile", "used-volatile", "max-duration"],
                             self._dispatch_command(depot, c, timeout).split(" ")))
         except Exception as e:
@@ -77,6 +78,7 @@ class ProtocolService(object):
             f"{kwargs.get('duration', DEFAULT_DURATION)} " \
             f"{kwargs.get('reliability', flags.IBP_HARD)} {timeout} \n"
         try:
+            timeout = kwargs.get('timeout', None)
             return self._dispatch_command(depot, c, timeout).split(" ")
         except Exception as e:
             self._log.warn(f"manage: [{alloc.id}] - Failed @ {depot.host}:{depot.port} - {e}")
@@ -99,6 +101,7 @@ class ProtocolService(object):
             f"{kwargs.get('reliability', flags.IBP_HARD)} " \
             f"{kwargs.get('cap_type', flags.IBP_BYTEARRAY)} {duration} {size} {timeout} \n"
         try:
+            timeout = kwargs.get('timeout', None)
             r = self._dispatch_command(depot, c, timeout).split(" ")[1:]
         except Exception as e:
             self._log.warn(f"allocate: Failed @ {depot.host}:{depot.port} - {e}")
@@ -125,9 +128,10 @@ class ProtocolService(object):
         except AttributeError:
             raise AllocationError("Incomplete allocation")
         # IBPv031[0] IBP_STORE[2] write_key WRMKey size timeout
-        c = f"{flags.IBPv031} {flags.IBP_STORE} {cap.key} {cap.wrmKey} {size} {timeout} \n"
+        c = f"{flags.IBPv031} {flags.IBP_STORE} {cap.key} {cap.wrmKey} {size} {timeout}\n"
         try:
-            return self._dispatch_data(depot, c, data).split(" ")
+            timeout = kwargs.get('timeout', None)
+            return self._dispatch_data(depot, c, data, timeout).split(" ")
         except Exception as e:
             self._log.warn(f"store: Failed @ {depot.host}:{depot.port} - {e}")
             raise
@@ -149,6 +153,7 @@ class ProtocolService(object):
 
     # Generate move request with the following form
         try:
+            timeout = kwargs.get('timeout', None)
             return self._dispatch_command(s_depot, c, timeout).split(" ")
         except Exception as e:
             self._log.warn("send: Failed @ {s_depot.host}:{s_depot.port} - {e}")
@@ -165,18 +170,19 @@ class ProtocolService(object):
             f"{kwargs.get('offset', 0)} {alloc.size} " \
             f"{kwargs.get('timeout', DEFAULT_TIMEOUT)} \n"
         try:
+            timeout = kwargs.get('timeout', None)
             return self._receive_data(depot, c, alloc.size, timeout=timeout)["data"]
         except Exception as e:
             self._log.warn(f"load: Failed @ {depot.host}:{depot.port} - {e}")
             raise
 
     @trace.debug("IBP.ProtocolService")
-    def _receive_data(self, depot, command, size, timeout=DEFAULT_TIMEOUT):
+    def _receive_data(self, depot, command, size, timeout):
         if isinstance(command, str): command = command.encode()
 
         self._log.debug(f"IBP receive [{depot.host}]: {command}")
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(2*timeout)
+            s.settimeout(timeout)
             s.connect((str(depot.host), depot.port))
             s.sendall(command)
             buf = s.recv(1024)
@@ -188,18 +194,18 @@ class ProtocolService(object):
                 if isisntance(hdr, bytes): hdr = hdr.decode()
                 raise IBPError(print_error(r.split(" ")[0]))
             while len(data) < size:
-                data += sock.recv(size - len(data))
+                data += s.recv(size - len(data))
 
         return { "headers": hdr.decode(), "data": data }
 
     @trace.debug("IBP.ProtocolService")
-    def _dispatch_data(self, depot, command, data, timeout=DEFAULT_TIMEOUT):
+    def _dispatch_data(self, depot, command, data, timeout):
         if isinstance(command, str): command = command.encode()
         if isinstance(data, str): data = data.encode()
 
         self._log.debug(f"IBP send [{depot.host}]: {command} | size: {len(data)}")
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(2*timeout)
+            s.settimeout(timeout)
             s.connect((str(depot.host), depot.port))
             s.sendall(command)
             r = s.recv(1024)
@@ -212,12 +218,12 @@ class ProtocolService(object):
         return r
 
     @trace.debug("IBP.ProtocolService")
-    def _dispatch_command(self, depot, command, timeout=DEFAULT_TIMEOUT):
+    def _dispatch_command(self, depot, command, timeout):
         if isinstance(command, str): command = command.encode()
 
         self._log.debug(f"IBP command [{depot.host}]: {command}")
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(2*timeout)
+            s.settimeout(timeout)
             s.connect((str(depot.host), int(depot.port)))
             s.sendall(command)
             r = s.recv(1024)
@@ -225,60 +231,3 @@ class ProtocolService(object):
 
         if r.startswith("-"): raise IBPError(print_error(r.split(" ")[0]))
         return r
-
-def UnitTests(): 
-    from libdlt.depot import Depot
-    depot1 = Depot("ibp://dresci.incntre.iu.edu:6714")
-    depot2 = Depot("ibp://ibp2.crest.iu.edu:6714")
-    service = ProtocolService()
-    
-    status1 = service.getStatus(depot1)
-    status2 = service.getStatus(depot2)
-    
-    assert status1 and status2
-    print("Dresci: {status}".format(status = status1))
-    print("IBP1:   {status}\n".format(status = status2))
-    
-    data = """Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Vestibulum tortor quam, feugiat vitae, ultricies eget, tempor sit amet, ante. Donec eu libero sit amet quam egestas semper. Aenean ultricies mi vitae est. Mauris placerat eleifend leo. Quisque sit amet est et sapien ullamcorper pharetra. Vestibulum erat wisi, condimentum sed, commodo vitae, ornare sit amet, wisi. Aenean fermentum, elit eget tincidunt condimentum, eros ipsum rutrum orci, sagittis tempus lacus enim ac dui. Donec non enim in turpis pulvinar facilisis. Ut felis. Praesent dapibus, neque id cursus faucibus, tortor neque egestas augue, eu vulputate magna eros eu erat. Aliquam erat volutpat. Nam dui mi, tincidunt quis, accumsan porttitor, facilisis luctus, metus"""
-    
-    first_alloc = service.allocate(depot1, 0, len(data))
-    second_alloc = service.allocate(depot2, 0, len(data))
-    
-    assert first_alloc and second_alloc
-    
-    alloc_status1 = service.probe(first_alloc)
-    alloc_status2 = service.probe(second_alloc)
-    
-    assert alloc_status1 and alloc_status2
-    print("Alloc1: {status}".format(status = alloc_status1))
-    print("Alloc2: {status}\n".format(status = alloc_status2))
-    
-    duration = service.store(first_alloc, data, len(data))
-    
-    assert duration
-    
-    is_ok = service.manage(first_alloc, duration = 300)
-    
-    print(service.probe(first_alloc))
-    
-    assert is_ok
-    
-    duration2 = service.send(first_alloc, second_alloc)
-    
-    assert duration2
-    
-    new_status1 = service.probe(first_alloc)
-    new_status2 = service.probe(second_alloc)
-    
-#    assert new_status1 and new_status2
-    print("Alloc1 (new): {status}".format(status = new_status1))
-    print("Alloc2 (new): {status}\n".format(status = new_status2))
-    
-    data_out = service.load(second_alloc)
-    
-    assert data_out
-    
-    print(data_out)
-    
-if __name__ == "__main__":
-    UnitTests()
