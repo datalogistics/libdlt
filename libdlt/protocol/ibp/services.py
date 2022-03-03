@@ -148,9 +148,7 @@ class ProtocolService(object):
             raise AllocationError("Incomplete allocation")
         # IBPv040[1] IBP_SEND[5] src_read_key dest_write_cap src_WRMKey offset size timeout timeout timeout
         c = f"{flags.IBPv040} {flags.IBP_SEND} {s_cap.key} {str(d_cap)} {s_cap.wrmKey} " \
-            f"{kwargs.get('offset', 0)} {size} {kwargs.get('timeout', DEFAULT_TIMEOUT)} " \
-            f"{kwargs.get('timeout', DEFAULT_TIMEOUT)} " \
-            f"{kwargs.get('timeout', DEFAULT_TIMEOUT)}\n"
+            f"{kwargs.get('offset', 0)} {size} {timeout} {timeout} {timeout}\n "
 
     # Generate move request with the following form
         try:
