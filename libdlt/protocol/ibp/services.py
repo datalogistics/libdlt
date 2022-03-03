@@ -146,7 +146,7 @@ class ProtocolService(object):
         except AttributeError:
             raise AllocationError("Incomplete allocation")
         # IBPv040[1] IBP_SEND[5] src_read_key src_WRMKey dest_write_cap offset size timeout timeout timeout
-        c = f"{flags.IBPv040} {flags.IBP_SEND} {s_cap.key} {s_cap.wrmKey} {str(d_cap)} " \
+        c = f"{flags.IBPv040} {flags.IBP_SEND} {s_cap.key} {str(d_cap)} {s_cap.wrmKey} " \
             f"{kwargs.get('offset', 0)} {size} {kwargs.get('timeout', DEFAULT_TIMEOUT)} " \
             f"{kwargs.get('timeout', DEFAULT_TIMEOUT)} " \
             f"{kwargs.get('timeout', DEFAULT_TIMEOUT)}\n"
@@ -156,7 +156,7 @@ class ProtocolService(object):
             timeout = kwargs.get('timeout', None)
             return self._dispatch_command(s_depot, c, timeout).split(" ")
         except Exception as e:
-            self._log.warn("send: Failed @ {s_depot.host}:{s_depot.port} - {e}")
+            self._log.warn(f"send: Failed @ {s_depot.host}:{s_depot.port} - {e}")
             raise
 
     @trace.info("IBP.ProtocolService")
