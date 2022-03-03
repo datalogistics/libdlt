@@ -11,6 +11,7 @@ to the IBP protocol
 '''
 
 import time, socket
+from math import ceil
 
 from libdlt.protocol.ibp.settings import DEFAULT_PASSWORD, DEFAULT_TIMEOUT, DEFAULT_DURATION, DEFAULT_MAXSIZE
 from lace import logging
@@ -138,14 +139,14 @@ class ProtocolService(object):
 
     @trace.info("IBP.ProtocolService")
     def send(self, source, destination, **kwargs):
-        timeout = kwargs.get('timeout', DEFAULT_TIMEOUT)
+        timeout = int(ceil(kwargs.get('timeout', DEFAULT_TIMEOUT)))
         size = kwargs.get("size", source.size)
         try:
             s_cap,s_depot = Capability(source.mapping.read), Depot(source.location)
             d_cap,d_depot = Capability(destination.mapping.write), Depot(destination.location)
         except AttributeError:
             raise AllocationError("Incomplete allocation")
-        # IBPv040[1] IBP_SEND[5] src_read_key src_WRMKey dest_write_cap offset size timeout timeout timeout
+        # IBPv040[1] IBP_SEND[5] src_read_key dest_write_cap src_WRMKey offset size timeout timeout timeout
         c = f"{flags.IBPv040} {flags.IBP_SEND} {s_cap.key} {str(d_cap)} {s_cap.wrmKey} " \
             f"{kwargs.get('offset', 0)} {size} {kwargs.get('timeout', DEFAULT_TIMEOUT)} " \
             f"{kwargs.get('timeout', DEFAULT_TIMEOUT)} " \
