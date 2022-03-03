@@ -49,7 +49,7 @@ class ProtocolService(object):
     
     @trace.info("IBP.ProtocolService")
     def getStatus(self, depot, **kwargs):
-        timeout = kwargs.get('timeout', DEFAULT_TIMEOUT)
+        timeout = kwargs.get('timeout', None) or DEFAULT_TIMEOUT
 
         # Query the status of a Depot.
         # IBPv031[0] IBP_ST_INQ[2] pwd timeout
@@ -65,7 +65,7 @@ class ProtocolService(object):
 
     @trace.info("IBP.ProtocolService")
     def manage(self, alloc, **kwargs):
-        timeout = kwargs.get('timeout', DEFAULT_TIMEOUT)
+        timeout = kwargs.get('timeout', None) or DEFAULT_TIMEOUT
         try:
             cap, depot = Capability(alloc.mapping.manage), Depot(alloc.location)
         except AttributeError:
@@ -93,8 +93,8 @@ class ProtocolService(object):
 
     @trace.info("IBP.ProtocolService")
     def allocate(self, depot, offset, size, **kwargs):
-        timeout = kwargs.get('timeout', DEFAULT_TIMEOUT)
-        duration = kwargs.get('duration', DEFAULT_DURATION)
+        timeout = kwargs.get('timeout', None) or DEFAULT_TIMEOUT
+        duration = kwargs.get('duration', None) or DEFAULT_DURATION
         
         # Generate destination Allocation and Capabilities using the form below
         # IBPv031[0] IBP_ALLOCATE[1] reliability cap_type duration size timeout
@@ -123,7 +123,7 @@ class ProtocolService(object):
     
     @trace.info("IBP.ProtocolService")
     def store(self, alloc, data, size, **kwargs):
-        timeout = kwargs.get('timeout', DEFAULT_TIMEOUT)
+        timeout = kwargs.get('timeout', None) or DEFAULT_TIMEOUT
         try:
             cap, depot = Capability(alloc.mapping.write), Depot(alloc.location)
         except AttributeError:
@@ -139,8 +139,8 @@ class ProtocolService(object):
 
     @trace.info("IBP.ProtocolService")
     def send(self, source, destination, **kwargs):
-        timeout = int(ceil(kwargs.get('timeout', DEFAULT_TIMEOUT)))
-        size = kwargs.get("size", source.size)
+        timeout = kwargs.get('timeout', None) or DEFAULT_TIMEOUT
+        size = kwargs.get("size", None) or source.size
         try:
             s_cap,s_depot = Capability(source.mapping.read), Depot(source.location)
             d_cap,d_depot = Capability(destination.mapping.write), Depot(destination.location)
@@ -160,7 +160,7 @@ class ProtocolService(object):
 
     @trace.info("IBP.ProtocolService")
     def load(self, alloc, **kwargs):
-        timeout = kwargs.get('timeout', DEFAULT_TIMEOUT)
+        timeout = kwargs.get('timeout', None) or DEFAULT_TIMEOUT
         try:
             cap, depot = Capability(alloc.mapping.read), Depot(alloc.location)
         except AttributeError:
