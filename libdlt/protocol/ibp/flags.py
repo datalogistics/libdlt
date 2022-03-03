@@ -121,9 +121,9 @@ error = {
     "-61": "IBP_E_INVALID_HOST",
     "-62": "IBP_E_CANT_CONNECT",
     "-63": "IBP_E_CHKSUM",
-    "-64": "IBP_E_CHKUM_TYPE",
-    "-65": "IBP_CHKSUM_BLOCKSIZE",
-    "-66": "IBP_CHKSUM_E_OUT_OF_SOCKETS",
+    "-64": "IBP_E_CHKSUM_TYPE",
+    "-65": "IBP_E_CHKSUM_BLOCKSIZE",
+    "-66": "IBP_E_OUT_OF_SOCKETS",
     "67": "IBP_MAX_ERROR"
     }
 
