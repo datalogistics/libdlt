@@ -25,7 +25,7 @@ class DLTFile(object):
         if whence == 0: self._head = offset
         elif whence == 1: self._head += offset
         else: self._head = self._ex.size - offset
-        self._find_chunk()
+        self._chunk = None
 
     def settimeout(self, timeout):
         self.t = timeout
