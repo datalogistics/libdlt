@@ -190,7 +190,7 @@ class ProtocolService(object):
                 hdr, data = buf[:line], buf[line:]
             except ValueError: data = b''
             if hdr.startswith(b'-'):
-                if isisntance(hdr, bytes): hdr = hdr.decode()
+                if isinstance(hdr, bytes): hdr = hdr.decode()
                 raise IBPError(print_error(r.split(" ")[0]))
             while len(data) < size:
                 data += s.recv(size - len(data))
